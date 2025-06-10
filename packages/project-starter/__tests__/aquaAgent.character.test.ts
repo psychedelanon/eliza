@@ -10,6 +10,7 @@ afterEach(() => {
   delete process.env.TWITTER_USERNAME;
   delete process.env.TWITTER_PASSWORD;
   delete process.env.TWITTER_EMAIL;
+  delete process.env.ENABLE_TWITTER_CLIENT;
 });
 
 describe('AquaAgent Character', () => {
@@ -18,21 +19,23 @@ describe('AquaAgent Character', () => {
     expect(aquaAgentCharacter.name).toBe('AquaAgent');
   });
 
-  it('should include twitter plugin when credentials provided', async () => {
-    const { aquaAgentCharacter } = await loadAqua();
-    const hasUserCreds =
-      process.env.TWITTER_USERNAME &&
-      process.env.TWITTER_PASSWORD &&
-      process.env.TWITTER_EMAIL;
-    const hasApiCreds =
-      process.env.TWITTER_API_KEY &&
-      (process.env.TWITTER_API_SECRET_KEY || process.env.TWITTER_API_SECRET) &&
-      process.env.TWITTER_ACCESS_TOKEN &&
-      process.env.TWITTER_ACCESS_TOKEN_SECRET;
+  it('should include twitter plugin when flag and credentials provided', async () => {
+    process.env.ENABLE_TWITTER_CLIENT = 'true';
+    process.env.TWITTER_USERNAME = 'user';
+    process.env.TWITTER_PASSWORD = 'pw';
+    process.env.TWITTER_EMAIL = 'e@x.com';
 
-    if (hasUserCreds || hasApiCreds) {
-      expect(aquaAgentCharacter.plugins).toContain('@elizaos/plugin-twitter');
-    }
+    const { aquaAgentCharacter } = await loadAqua();
+    expect(aquaAgentCharacter.plugins).toContain('@elizaos/plugin-twitter');
+  });
+
+  it('should not include twitter plugin when flag disabled', async () => {
+    process.env.TWITTER_USERNAME = 'user';
+    process.env.TWITTER_PASSWORD = 'pw';
+    process.env.TWITTER_EMAIL = 'e@x.com';
+
+    const { aquaAgentCharacter } = await loadAqua();
+    expect(aquaAgentCharacter.plugins).not.toContain('@elizaos/plugin-twitter');
   });
 
   it('should have example messages', async () => {
@@ -42,6 +45,7 @@ describe('AquaAgent Character', () => {
   });
 
   it('initAquaAgent posts startup tweet when twitter service available', async () => {
+    process.env.ENABLE_TWITTER_CLIENT = 'true';
     process.env.TWITTER_USERNAME = 'test';
     process.env.TWITTER_PASSWORD = 'pw';
     process.env.TWITTER_EMAIL = 'e@x.com';

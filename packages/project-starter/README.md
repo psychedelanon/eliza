@@ -111,9 +111,10 @@ Customize your project by modifying:
 
 ### Twitter Setup
 
-Add your Twitter credentials to `.env` to enable AquaAgent's Twitter integration. You can use either a login-based set or API keys:
+Add your Twitter credentials to `.env` to enable AquaAgent's Twitter integration. Set `ENABLE_TWITTER_CLIENT=true` along with either a login-based set or API keys:
 
 ```env
+ENABLE_TWITTER_CLIENT=true
 TWITTER_USERNAME=
 TWITTER_PASSWORD=
 TWITTER_EMAIL=

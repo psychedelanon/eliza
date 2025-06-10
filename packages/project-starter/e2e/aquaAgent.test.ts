@@ -15,8 +15,19 @@ export class AquaAgentTestSuite implements TestSuite {
         if (runtime.character.name !== aquaAgentCharacter.name) {
           throw new Error(`Expected character name to be ${aquaAgentCharacter.name}, got ${runtime.character.name}`);
         }
-        if (process.env.TWITTER_USERNAME) {
-          const hasTwitter = runtime.character.plugins?.some((p) => typeof p === 'string' && p.includes('twitter'));
+        const hasUserCreds =
+          process.env.TWITTER_USERNAME &&
+          process.env.TWITTER_PASSWORD &&
+          process.env.TWITTER_EMAIL;
+        const hasApiCreds =
+          process.env.TWITTER_API_KEY &&
+          (process.env.TWITTER_API_SECRET_KEY || process.env.TWITTER_API_SECRET) &&
+          process.env.TWITTER_ACCESS_TOKEN &&
+          process.env.TWITTER_ACCESS_TOKEN_SECRET;
+        if (hasUserCreds || hasApiCreds) {
+          const hasTwitter = runtime.character.plugins?.some(
+            (p) => typeof p === 'string' && p.includes('twitter')
+          );
           if (!hasTwitter) {
             throw new Error('Twitter plugin not configured');
           }

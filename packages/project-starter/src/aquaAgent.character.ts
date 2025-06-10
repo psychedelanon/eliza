@@ -1,4 +1,4 @@
-import { logger, type Character, type IAgentRuntime } from '@elizaos/core';
+import { logger, type Character, type IAgentRuntime, EventType } from '@elizaos/core';
 import plugin from './plugin.js';
 
 const username = process.env.TWITTER_USERNAME;
@@ -89,6 +89,23 @@ export default aquaAgentCharacter;
  * configured, post a startup tweet confirming the agent is online.
  */
 export async function initAquaAgent(runtime: IAgentRuntime) {
+  if (!runtime.actions.find((a) => a.name === 'REPLY')) {
+    runtime.registerEvent(EventType.MESSAGE_RECEIVED, async (payload) => {
+      try {
+        await runtime.sendMessageToTarget(
+          {
+            source: payload.message.content.source || payload.source || 'unknown',
+            roomId: payload.message.roomId,
+            entityId: payload.message.entityId,
+          },
+          { text: 'Still initializing...' }
+        );
+      } catch (err) {
+        logger.error('[AquaAgent] Fallback handler failed', err);
+      }
+    });
+  }
+
   if (!enableTwitter) {
     return;
   }

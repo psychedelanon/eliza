@@ -125,3 +125,10 @@ TWITTER_ACCESS_TOKEN_SECRET=
 ```
 
 AquaAgent will automatically detect these variables and load the Twitter client when available.
+
+When the credentials are present, AquaAgent also posts a startup message
+confirming the connection:
+
+```
+🌊 AquaAgent is online! Ready to flow with facts and inspiration. #AquaAgent
+```

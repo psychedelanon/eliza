@@ -34,6 +34,25 @@ export class AquaAgentTestSuite implements TestSuite {
         }
       },
     },
+    {
+      name: 'AquaAgent responds to a message',
+      fn: async (runtime: IAgentRuntime) => {
+        let reply = '';
+        await runtime.emitEvent(EventType.MESSAGE_RECEIVED, {
+          runtime,
+          source: 'test',
+          message: {
+            entityId: runtime.agentId,
+            roomId: runtime.agentId,
+            content: { text: 'ping', source: 'test' },
+          } as any,
+          callback: async (content) => {
+            reply = content.text || '';
+          },
+        });
+        if (!reply) throw new Error('No reply generated');
+      },
+    },
   ];
 }
 

@@ -107,3 +107,21 @@ Customize your project by modifying:
 
 - `src/index.ts` - Main entry point
 - `src/character.ts` - Character definition
+
+### Twitter Setup
+
+Add your Twitter credentials to `.env` to enable AquaAgent's Twitter integration. You can use either a login-based set or API keys:
+
+```env
+TWITTER_USERNAME=
+TWITTER_PASSWORD=
+TWITTER_EMAIL=
+TWITTER_2FA_SECRET=
+
+TWITTER_API_KEY=
+TWITTER_API_SECRET_KEY=
+TWITTER_ACCESS_TOKEN=
+TWITTER_ACCESS_TOKEN_SECRET=
+```
+
+AquaAgent will automatically detect these variables and load the Twitter client when available.

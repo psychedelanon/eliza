@@ -7,7 +7,17 @@ describe('AquaAgent Character', () => {
   });
 
   it('should include twitter plugin when credentials provided', () => {
-    if (process.env.TWITTER_USERNAME) {
+    const hasUserCreds =
+      process.env.TWITTER_USERNAME &&
+      process.env.TWITTER_PASSWORD &&
+      process.env.TWITTER_EMAIL;
+    const hasApiCreds =
+      process.env.TWITTER_API_KEY &&
+      (process.env.TWITTER_API_SECRET_KEY || process.env.TWITTER_API_SECRET) &&
+      process.env.TWITTER_ACCESS_TOKEN &&
+      process.env.TWITTER_ACCESS_TOKEN_SECRET;
+
+    if (hasUserCreds || hasApiCreds) {
       expect(aquaAgentCharacter.plugins).toContain('@elizaos/plugin-twitter');
     }
   });

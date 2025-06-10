@@ -132,3 +132,6 @@ confirming the connection:
 ```
 🌊 AquaAgent is online! Ready to flow with facts and inspiration. #AquaAgent
 ```
+
+With the tweet scheduler enabled, AquaAgent periodically posts ocean facts from
+the Goobingston account sample data and automatically replies to mentions.

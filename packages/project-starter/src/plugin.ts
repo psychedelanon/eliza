@@ -14,6 +14,7 @@ import {
   logger,
 } from '@elizaos/core';
 import { z } from 'zod';
+import { SocialEngagementService } from './services/socialEngagementService.js';
 
 /**
  * Define the configuration schema for the plugin with the following properties:
@@ -247,7 +248,7 @@ const plugin: Plugin = {
       },
     ],
   },
-  services: [StarterService],
+  services: [StarterService, SocialEngagementService],
   actions: [helloWorldAction],
   providers: [helloWorldProvider],
 };

@@ -15,6 +15,8 @@ import {
 } from '@elizaos/core';
 import { z } from 'zod';
 import { SocialEngagementService } from './services/socialEngagementService.js';
+import { ScheduledTweetService } from './services/scheduledTweetService.js';
+import { MentionReplyService } from './services/mentionReplyService.js';
 
 /**
  * Define the configuration schema for the plugin with the following properties:
@@ -248,7 +250,12 @@ const plugin: Plugin = {
       },
     ],
   },
-  services: [StarterService, SocialEngagementService],
+  services: [
+    StarterService,
+    SocialEngagementService,
+    ScheduledTweetService,
+    MentionReplyService,
+  ],
   actions: [helloWorldAction],
   providers: [helloWorldProvider],
 };

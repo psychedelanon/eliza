@@ -6,6 +6,7 @@ import {
   type ProjectAgent,
 } from '@elizaos/core';
 import starterPlugin from './plugin.ts';
+import { aquaAgentCharacter, initAquaAgent } from './aquaAgent.character.js';
 
 /**
  * Represents the default character (Eliza) with her specific attributes and behaviors.
@@ -128,13 +129,21 @@ export const character: Character = {
   },
 };
 
-const initCharacter = ({ runtime }: { runtime: IAgentRuntime }) => {
+const useAquaAgent = process.env.USE_AQUA_AGENT === 'true';
+export const activeCharacter: Character = useAquaAgent
+  ? aquaAgentCharacter
+  : character;
+
+const initCharacter = async ({ runtime }: { runtime: IAgentRuntime }) => {
   logger.info('Initializing character');
-  logger.info('Name: ', character.name);
+  logger.info('Name: ', runtime.character.name);
+  if (useAquaAgent) {
+    await initAquaAgent(runtime);
+  }
 };
 
 export const projectAgent: ProjectAgent = {
-  character,
+  character: activeCharacter,
   init: async (runtime: IAgentRuntime) => await initCharacter({ runtime }),
   // plugins: [starterPlugin], <-- Import custom plugins here
 };

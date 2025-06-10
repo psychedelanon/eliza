@@ -142,7 +142,13 @@ tone of the response and may include a fun follow-up fact.
 
 ### Launching AquaAgent
 
-To start AquaAgent without manually registering it in the dashboard, run the provided launch script:
+To start AquaAgent without manually registering it in the dashboard, run the provided launch script. A helper shell script is available at `scripts/run-aqua-agent.sh` which sets the recommended environment variables before launching:
+
+```bash
+./scripts/run-aqua-agent.sh
+```
+
+The script simply invokes
 
 ```bash
 bun run src/launchAquaAgent.ts

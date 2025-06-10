@@ -17,6 +17,7 @@ import { z } from 'zod';
 import { SocialEngagementService } from './services/socialEngagementService.js';
 import { ScheduledTweetService } from './services/scheduledTweetService.js';
 import { MentionReplyService } from './services/mentionReplyService.js';
+import { OceanFactService } from './services/oceanFactService.js';
 
 /**
  * Define the configuration schema for the plugin with the following properties:
@@ -255,6 +256,7 @@ const plugin: Plugin = {
     SocialEngagementService,
     ScheduledTweetService,
     MentionReplyService,
+    OceanFactService,
   ],
   actions: [helloWorldAction],
   providers: [helloWorldProvider],

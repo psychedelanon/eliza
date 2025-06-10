@@ -11,10 +11,12 @@ describe('MentionReplyService', () => {
   beforeEach(() => {
     vi.useFakeTimers();
     (postAction.handler as any).mockClear();
+    vi.spyOn(Math, 'random').mockReturnValue(0.99);
   });
 
   afterEach(() => {
     vi.useRealTimers();
+    vi.restoreAllMocks();
   });
 
   it('replies to mentions from dataset', async () => {

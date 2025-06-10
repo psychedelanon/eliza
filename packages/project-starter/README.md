@@ -10,6 +10,7 @@ This is the starter template for ElizaOS projects.
 - Example service, action, and provider implementations
 - TypeScript configuration for optimal developer experience
 - Built-in documentation and examples
+- Automated ocean fact tweets and smarter mention replies
 
 ## Getting Started
 
@@ -134,7 +135,10 @@ confirming the connection:
 ```
 
 With the tweet scheduler enabled, AquaAgent periodically posts ocean facts from
-the Goobingston account sample data and automatically replies to mentions.
+the Goobingston account sample data and automatically replies to mentions. The
+ocean fact service can also pull facts from an external API when configured.
+Mention replies now detect greetings, questions and compliments to tailor the
+tone of the response and may include a fun follow-up fact.
 
 ### Launching AquaAgent
 
@@ -159,4 +163,3 @@ Set `ELIZA_SERVER_AUTH_TOKEN` in your `.env` to enable API authentication and re
 ### Windows Path Warnings
 
 Running outside of WSL may produce `The system cannot find the path specified` messages. Use WSL2 or ensure all data directories exist to avoid them.
-

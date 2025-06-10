@@ -148,4 +148,5 @@ playwright-report/
 *.tmp
 *.temp
 temp/
-tmp/
+tmp/.venv/
+.venv/

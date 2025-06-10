@@ -5,6 +5,7 @@ const username = process.env.TWITTER_USERNAME;
 const password = process.env.TWITTER_PASSWORD;
 const email = process.env.TWITTER_EMAIL;
 const otpSecret = process.env.TWITTER_2FA_SECRET;
+const startTwitter = process.env.ENABLE_TWITTER_CLIENT === 'true';
 
 const apiKey = process.env.TWITTER_API_KEY;
 const apiSecretKey = process.env.TWITTER_API_SECRET_KEY || process.env.TWITTER_API_SECRET;
@@ -13,9 +14,17 @@ const accessSecret = process.env.TWITTER_ACCESS_TOKEN_SECRET;
 
 const hasUserCreds = username && password && email;
 const hasApiCreds = apiKey && apiSecretKey && accessToken && accessSecret;
-const enableTwitter = Boolean(hasUserCreds || hasApiCreds);
+let enableTwitter = startTwitter && (hasUserCreds || hasApiCreds);
 
-if (!enableTwitter) {
+if (startTwitter && !enableTwitter) {
+  logger.warn(
+    '[AquaAgent] Twitter client requested but credentials incomplete. Integration disabled.'
+  );
+}
+
+if (!startTwitter) {
+  logger.warn('[AquaAgent] Twitter integration disabled via ENABLE_TWITTER_CLIENT');
+} else if (!enableTwitter) {
   logger.warn('[AquaAgent] Twitter credentials not found. Twitter integration disabled.');
 }
 

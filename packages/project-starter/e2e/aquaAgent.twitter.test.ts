@@ -3,8 +3,9 @@ import { test, expect } from 'bun:test';
 const username = process.env.TWITTER_USERNAME;
 const password = process.env.TWITTER_PASSWORD;
 const email = process.env.TWITTER_EMAIL;
+const enable = process.env.ENABLE_TWITTER_CLIENT === 'true';
 
-if (!username || !password || !email) {
+if (!enable || !username || !password || !email) {
   console.warn('Twitter credentials not provided – skipping AquaAgent Twitter integration test.');
   test.skip('AquaAgent startup tweet to Twitter (skipped due to missing credentials)', () => {});
 } else {
@@ -12,7 +13,7 @@ if (!username || !password || !email) {
     const proc = Bun.spawn({
       cmd: ['bun', 'run', 'start'],
       cwd: import.meta.dir + '/..', // move to project-starter root
-      env: { ...process.env, USE_AQUA_AGENT: 'true' },
+      env: { ...process.env, USE_AQUA_AGENT: 'true', ENABLE_TWITTER_CLIENT: 'true' },
       stdout: 'pipe',
       stderr: 'pipe',
     });

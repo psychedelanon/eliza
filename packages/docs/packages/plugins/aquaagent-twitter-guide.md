@@ -16,6 +16,7 @@ AquaAgent supports two authentication methods.
 Add these variables to your `.env`:
 
 ```env
+ENABLE_TWITTER_CLIENT=true
 TWITTER_USERNAME=your_username
 TWITTER_PASSWORD=your_password
 TWITTER_EMAIL=your_email

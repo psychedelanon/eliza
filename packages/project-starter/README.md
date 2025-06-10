@@ -135,3 +135,28 @@ confirming the connection:
 
 With the tweet scheduler enabled, AquaAgent periodically posts ocean facts from
 the Goobingston account sample data and automatically replies to mentions.
+
+### Launching AquaAgent
+
+To start AquaAgent without manually registering it in the dashboard, run the provided launch script:
+
+```bash
+bun run src/launchAquaAgent.ts
+```
+
+The script initializes an `AgentServer`, registers AquaAgent, preloads its model and starts the HTTP server. When you see `AquaAgent ready` in the console the agent is fully initialized.
+
+If you prefer using the CLI you can also load the included JSON profile:
+
+```bash
+elizaos start --characters="characters/AquaAgent.json"
+```
+
+### Server Authentication
+
+Set `ELIZA_SERVER_AUTH_TOKEN` in your `.env` to enable API authentication and remove startup warnings.
+
+### Windows Path Warnings
+
+Running outside of WSL may produce `The system cannot find the path specified` messages. Use WSL2 or ensure all data directories exist to avoid them.
+

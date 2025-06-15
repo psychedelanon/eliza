@@ -150,3 +150,4 @@ playwright-report/
 temp/
 tmp/.venv/
 .venv/
+__pycache__/

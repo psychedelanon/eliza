@@ -64,6 +64,10 @@ bun install
 _say "bun run build"
 bun run build
 
+# Install Python dependencies
+python3 -m pip install --upgrade pip
+python3 -m pip install -r requirements.txt
+
 # 7. Optional tests
 if [ -x scripts/test.sh ]; then
   _say "Running scripts/test.sh"

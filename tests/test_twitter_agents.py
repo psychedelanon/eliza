@@ -3,27 +3,33 @@ import importlib
 
 import pytest
 
-# Ensure the module is importable when tests run
-MODULE_PATH = os.path.join(os.path.dirname(__file__), '..', 'scripts')
+# Ensure module import
 import sys
-sys.path.insert(0, MODULE_PATH)
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-import twitter_agents
-
-
-def test_generate_content():
-    agent = twitter_agents.TwitterAgent('AgentX', None, None, None, None, 'playful')
-    assert 'AgentX says hello in a playful manner.' == agent.generate_content()
+from agents.base import TwitterAgent
 
 
-def test_create_agents_uses_env(monkeypatch):
-    monkeypatch.setenv('TWITTER_AGENT1_API_KEY', 'key')
-    monkeypatch.setenv('TWITTER_AGENT1_API_SECRET', 'secret')
-    monkeypatch.setenv('TWITTER_AGENT1_ACCESS_TOKEN', 'token')
-    monkeypatch.setenv('TWITTER_AGENT1_ACCESS_SECRET', 'toksecret')
-    agents = twitter_agents.create_agents(1)
-    assert len(agents) == 1
-    assert agents[0].api_key == 'key'
-    assert agents[0].api_secret == 'secret'
-    assert agents[0].access_token == 'token'
-    assert agents[0].access_secret == 'toksecret'
+def test_craft_post():
+    agent = TwitterAgent(
+        idx=1,
+        name="AgentX",
+        personality="playful",
+        api_key="k",
+        api_secret="s",
+        access_token="t",
+        access_secret="ts",
+    )
+    assert agent.craft_post() == "AgentX says hello in a playful manner."
+
+
+def test_env_credentials(monkeypatch):
+    monkeypatch.setenv("TWITTER_AGENT1_API_KEY", "key")
+    monkeypatch.setenv("TWITTER_AGENT1_API_SECRET", "secret")
+    monkeypatch.setenv("TWITTER_AGENT1_ACCESS_TOKEN", "token")
+    monkeypatch.setenv("TWITTER_AGENT1_ACCESS_SECRET", "toksecret")
+    agent = TwitterAgent(idx=1, name="Agent1", personality="test")
+    assert agent.api_key == "key"
+    assert agent.api_secret == "secret"
+    assert agent.access_token == "token"
+    assert agent.access_secret == "toksecret"

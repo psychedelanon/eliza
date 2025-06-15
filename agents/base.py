@@ -53,6 +53,17 @@ class TwitterAgent:
         log.info("%s posted tweet %s", self.name, tweet_id)
         return tweet_id
 
+    @retry(wait=wait_random_exponential(multiplier=2, max=60), stop=stop_after_attempt(5), reraise=True)
+    def reply(self, text: str, tweet_id: int) -> int:
+        status = self.client.update_status(
+            status=text,
+            in_reply_to_status_id=tweet_id,
+            auto_populate_reply_metadata=True,
+        )
+        reply_id = status.id
+        log.info("%s replied with %s", self.name, reply_id)
+        return reply_id
+
     async def check_mentions(self, since_id: Optional[int] = None) -> int:
         timeline = self.client.mentions_timeline(
             since_id=since_id, tweet_mode="extended", count=20

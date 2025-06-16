@@ -26,7 +26,7 @@ log = logging.getLogger("runner")
 REPLY_DELAY_MIN = int(os.getenv("REPLY_DELAY_MIN", "5"))
 REPLY_DELAY_MAX = int(os.getenv("REPLY_DELAY_MAX", "20"))
 
-NUM_AGENTS = 18
+NUM_AGENTS = int(os.getenv("NUM_AGENTS", "18"))
 
 
 def _has_creds(idx: int) -> bool:
@@ -70,15 +70,21 @@ async def main():
     )
     args = parser.parse_args()
 
-    agent_runtimes = [AgentRuntime(a) for a in init_agents(dry_run=args.dry_run)]
+    if args.dry_run:
+        log.info("dry run mode", extra={"event": "dry_run"})
+    agent_runtimes = [
+        AgentRuntime(a, dry_run=args.dry_run) for a in init_agents(dry_run=args.dry_run)
+    ]
 
     if args.demo:
         for rt in agent_runtimes:
             text = rt.agent.craft_post()
-            tweet_id = rt.agent.post(text)
+            tweet_id = rt.agent.post(text, dry_run=args.dry_run)
             if tweet_id != -1:
                 await asyncio.sleep(random.uniform(REPLY_DELAY_MIN, REPLY_DELAY_MAX))
-                rt.agent.reply(tweet_id=tweet_id, original_text=text)
+                rt.agent.reply(
+                    tweet_id=tweet_id, original_text=text, dry_run=args.dry_run
+                )
         return
 
     if args.once:

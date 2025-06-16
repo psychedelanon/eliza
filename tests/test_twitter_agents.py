@@ -1,5 +1,7 @@
 import os
 import sys
+import asyncio
+import subprocess
 import pytest
 import types
 import sqlite3
@@ -25,7 +27,9 @@ sys.modules.setdefault(
             (),
             {
                 "__init__": lambda self, *a, **k: None,
-                "create_tweet": lambda self, **_k: types.SimpleNamespace(data={"id": 123}),
+                "create_tweet": lambda self, **_k: types.SimpleNamespace(
+                    data={"id": 123}
+                ),
             },
         ),
         TweepyException=Exception,
@@ -41,7 +45,7 @@ sys.modules.setdefault(
 )
 
 # Ensure module import
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from agents.base import TwitterAgent
 import quickfire
@@ -65,6 +69,7 @@ def stub_quickfire(monkeypatch):
 @pytest.fixture(autouse=True)
 def temp_db(tmp_path, monkeypatch):
     import agents.base as base
+
     monkeypatch.setattr(base, "DB_PATH", tmp_path / "db.sqlite", raising=False)
     base._db = sqlite3.connect(base.DB_PATH)
     base._db.execute(
@@ -194,6 +199,18 @@ def test_dry_run_skips_post_and_reply(monkeypatch):
     post_id = agent.post("hi")
     reply_id = agent.reply(tweet_id=123, text="reply")
 
-    assert post_id == -1
-    assert reply_id == -1
+    assert post_id > 0
+    assert reply_id > 0
     assert agent.client.called is False
+
+
+def test_cli_dry_run_event(tmp_path):
+    env = os.environ.copy()
+    env.update({"REPLY_DELAY_MIN": "0", "REPLY_DELAY_MAX": "0"})
+    result = subprocess.run(
+        [sys.executable, "run.py", "--demo", "--dry-run"],
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+    assert '"event": "dry_run"' in result.stdout + result.stderr

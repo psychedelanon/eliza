@@ -1,20 +1,42 @@
-# Ignore node_modules from the build context
+# Dependencies
 node_modules
+.pnpm-store
+.npm
+.yarn
 
-# Ignore logs and temporary files
-*.log
-*.tmp
-.DS_Store
-
-# Ignore Git files and metadata
-.gitignore
-
-# Ignore IDE and editor config files
-.vscode
-.idea
-*.swp
-
-# Ignore build artifacts from the host
+# Build outputs
 dist
 build
+*.tsbuildinfo
+
+# Development files
+.git
+.github
+.vscode
+.idea
+*.log
+*.md
+!README.md
+
+# Test files
+coverage
+.nyc_output
+__tests__
+*.test.ts
+*.spec.ts
+
+# Environment files
 .env
+.env.*
+!.env.example
+
+# Cache directories
+.cache
+.turbo
+.next
+.nuxt
+.vuepress/dist
+
+# System files
+.DS_Store
+Thumbs.db

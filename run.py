@@ -10,7 +10,14 @@ from agents.base import TwitterAgent
 from agents.personalities import PERSONALITIES
 from scheduler.tasks import AgentRuntime, build_scheduler
 
+print("\nDEBUG: Current working directory:", os.getcwd())
+print("DEBUG: Checking if .env exists:", os.path.exists(".env"))
 load_dotenv()
+print("DEBUG: All environment variables after load_dotenv:")
+for key in os.environ:
+    if key.startswith("TWITTER_"):
+        print(f"{key}: {'*' * 10 if 'SECRET' in key else os.getenv(key)}")
+
 with open("config/logging.yaml") as f:
     logging.config.dictConfig(yaml.safe_load(f))
 

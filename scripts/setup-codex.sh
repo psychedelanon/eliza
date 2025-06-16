@@ -1,105 +1,130 @@
 #!/bin/bash
 
-# Exit on error
-set -e
+# Codex environment setup script for the eliza project
+# Specifically designed for OpenAI Codex environment (Ubuntu 24.04)
 
-# Colors for output
-RED='\033[0;31m'
+# Enable verbose output and error handling
+set -x  # Print each command before execution
+set -e  # Exit on any error
+set -o pipefail  # Exit on pipe failures
+
+# Define some colors for pretty output
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
-NC='\033[0m' # No Color
+BLUE='\033[0;34m'
+PURPLE='\033[0;35m'
+RED='\033[0;31m'
+NC='\033[0m'  # No color / reset
 
-# Print with color
+# Function to print colored messages
 print_step() {
-    echo -e "${GREEN}==>${NC} $1"
+    echo -e "${PURPLE}🤖 $1${NC}"
+}
+
+print_success() {
+    echo -e "${GREEN}✓ $1${NC}"
 }
 
 print_warning() {
-    echo -e "${YELLOW}Warning:${NC} $1"
+    echo -e "${YELLOW}⚠️  $1${NC}"
+}
+
+print_info() {
+    echo -e "${BLUE}ℹ️  $1${NC}"
 }
 
 print_error() {
-    echo -e "${RED}Error:${NC} $1"
+    echo -e "${RED}✖ $1${NC}"
 }
 
-# Check if bun is installed
-check_bun() {
-    if ! command -v bun &> /dev/null; then
-        print_error "Bun is not installed. Please install it first:"
-        echo "curl -fsSL https://bun.sh/install | bash"
-        exit 1
-    fi
+# Function to check if a command exists
+command_exists() {
+    command -v "$1" >/dev/null 2>&1
 }
 
-# Check if Docker is installed and running
-check_docker() {
-    if ! command -v docker &> /dev/null; then
-        print_error "Docker is not installed. Please install it first."
-        exit 1
-    fi
-
-    if ! docker info &> /dev/null; then
-        print_error "Docker is not running. Please start Docker first."
-        exit 1
-    fi
+# Function to log errors
+log_error() {
+    print_error "$1"
+    echo "Error details: $2" >&2
 }
+
+print_step "Starting Codex setup in $(pwd)..."
+
+# Install system dependencies
+print_info "Installing system dependencies..."
+apt-get update
+apt-get install -y curl git build-essential
+
+# Install Node.js using nvm
+print_info "Installing Node.js 23.3.0 using nvm..."
+# Ensure nvm is loaded
+export NVM_DIR="$HOME/.nvm"
+[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+
+# Install and use Node.js 23.3.0
+nvm install 23.3.0
+nvm use 23.3.0
+nvm alias default 23.3.0
+
+# Verify Node.js installation and version
+NODE_VERSION=$(node --version)
+if [[ "$NODE_VERSION" != v23.3.0 ]]; then
+    print_error "Node.js 23.3.0 installation failed. Current version: $NODE_VERSION"
+    exit 1
+fi
+print_success "Node.js $NODE_VERSION installed"
+
+# Install Bun
+print_info "Installing Bun..."
+curl -fsSL https://bun.sh/install | bash
+export BUN_INSTALL="$HOME/.bun"
+export PATH="$BUN_INSTALL/bin:$PATH"
+
+# Verify Bun installation
+if command_exists bun; then
+    BUN_VERSION=$(bun --version)
+    print_success "Bun $BUN_VERSION installed"
+else
+    print_error "Failed to install Bun"
+    exit 1
+fi
+
+# Initialize git submodules if .gitmodules exists
+if [ -f .gitmodules ]; then
+    print_info "Initializing git submodules..."
+    git submodule update --init --recursive
+fi
+
+# Setup configuration files
+print_info "Setting up configuration files..."
+cp .env.example .env
+
+# Clean up any existing node_modules and lockfiles
+print_info "Cleaning up existing dependencies..."
+rm -rf node_modules
+rm -f package-lock.json
+rm -f bun.lockb
+rm -f yarn.lock
+
+# Update package.json to use Node.js 23.3.0
+print_info "Updating package.json for Node.js 23.3.0..."
+if [ -f package.json ]; then
+    # Use sed to update the engines field
+    sed -i 's/"node": ".*"/"node": "23.3.0"/' package.json
+fi
 
 # Install dependencies
-install_dependencies() {
-    print_step "Installing dependencies..."
-    bun install
-}
+print_info "Installing project dependencies with Bun..."
+bun install
 
-# Initialize git submodules
-init_submodules() {
-    print_step "Initializing git submodules..."
-    git submodule update --init --recursive
-}
+# Install missing dependencies
+print_info "Installing additional required dependencies..."
+bun add -d @elizaos/plugin-twitter
 
-# Setup environment variables
-setup_env() {
-    print_step "Setting up environment variables..."
-    
-    # Create .env file if it doesn't exist
-    if [ ! -f .env ]; then
-        cp .env.example .env 2>/dev/null || touch .env
-        print_warning "Created .env file. Please configure your environment variables."
-    fi
-}
+print_success "Dependencies installed successfully"
 
-# Build packages
-build_packages() {
-    print_step "Building packages..."
-    bun run build
-}
+# Build the project
+print_info "Building the project..."
+bun run build
 
-# Run tests
-run_tests() {
-    print_step "Running tests..."
-    bun run test
-}
-
-# Main setup process
-main() {
-    print_step "Starting Codex environment setup..."
-    
-    # Check prerequisites
-    check_bun
-    check_docker
-    
-    # Run setup steps
-    install_dependencies
-    init_submodules
-    setup_env
-    build_packages
-    run_tests
-    
-    print_step "Setup completed successfully!"
-    echo -e "\nNext steps:"
-    echo "1. Configure your .env file with necessary credentials"
-    echo "2. Start the development server with 'bun run dev'"
-    echo "3. Access the application at http://localhost:3000"
-}
-
-# Run main function
-main 
+print_success "Setup completed successfully!" 

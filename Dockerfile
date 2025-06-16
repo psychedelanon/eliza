@@ -1,60 +1,38 @@
-FROM node:23.3.0-slim AS builder
+# Use Node.js 20 as base image
+FROM node:20-slim
 
-WORKDIR /app
-
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    git \
+    curl \
     build-essential \
-    curl \
-    ffmpeg \
-    g++ \
-    git \
-    make \
     python3 \
-    unzip && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/*
 
-RUN npm install -g bun@1.2.5 turbo@2.3.3
+# Install Bun
+RUN curl -fsSL https://bun.sh/install | bash
 
-RUN ln -s /usr/bin/python3 /usr/bin/python
+# Add Bun to PATH
+ENV PATH="/root/.bun/bin:${PATH}"
 
-COPY package.json turbo.json tsconfig.json lerna.json renovate.json .npmrc ./
-COPY scripts ./scripts
-COPY packages ./packages
-
-RUN bun install --no-cache
-
-RUN bun run build
-
-FROM node:23.3.0-slim
-
+# Set working directory
 WORKDIR /app
 
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-    curl \
-    ffmpeg \
-    git \
-    python3 \
-    unzip && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
+# Install pnpm globally
+RUN npm install -g pnpm
 
-RUN npm install -g bun@1.2.5 turbo@2.3.3
+# Copy package files
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY packages/*/package.json ./packages/
 
-COPY --from=builder /app/package.json ./
-COPY --from=builder /app/turbo.json ./
-COPY --from=builder /app/tsconfig.json ./
-COPY --from=builder /app/lerna.json ./
-COPY --from=builder /app/renovate.json ./
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/packages ./packages
-COPY --from=builder /app/scripts ./scripts
+# Install dependencies
+RUN pnpm install
 
-ENV NODE_ENV=production
+# Copy the rest of the codebase
+COPY . .
 
-EXPOSE 3000
-EXPOSE 50000-50100/udp
+# Build all packages
+RUN pnpm build
 
-CMD ["bun", "run", "start"]
+# Set default command
+CMD ["pnpm", "start"]

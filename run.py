@@ -83,7 +83,12 @@ async def main():
     if args.dry_run:
         log.info("dry run mode", extra={"event": "dry_run"})
     agent_runtimes = [
-        AgentRuntime(a, dry_run=args.dry_run) for a in init_agents(configs, dry_run=args.dry_run)
+        AgentRuntime(
+            a,
+            dry_run=args.dry_run,
+            daily_job=a.name == "Agent2",
+        )
+        for a in init_agents(configs, dry_run=args.dry_run)
     ]
 
     if args.demo:

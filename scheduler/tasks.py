@@ -6,6 +6,10 @@ from datetime import datetime, timezone, timedelta
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.interval import IntervalTrigger
+from apscheduler.triggers.cron import CronTrigger
+
+from agents import prices
+import blacksmith_forge.quickfire as qf
 
 log = logging.getLogger("sched")
 
@@ -14,10 +18,11 @@ REPLY_DELAY_MAX = int(os.getenv("REPLY_DELAY_MAX", "20"))
 
 
 class AgentRuntime:
-    def __init__(self, agent, dry_run: bool = False):
+    def __init__(self, agent, dry_run: bool = False, daily_job: bool = False):
         self.agent = agent
         self.dry_run = dry_run
         self.last_mention_id = None
+        self.daily_job = daily_job
 
     async def periodic_post(self):
         text, img_path = self.agent.craft_post()
@@ -44,6 +49,22 @@ class AgentRuntime:
         await asyncio.sleep(0)
 
 
+async def daily_price_post(runtime: "AgentRuntime"):
+    btc, hpos = prices.get_prices()
+    text = (
+        f"Market close snapshot: 1 BTC=${btc:,.0f} — "
+        f"1 BITCOIN (HPOS10I)=${hpos:,.6f} 🚀📉"
+    )
+    img = None
+    if os.getenv("MEDIA_ENABLE", "false").lower() == "true":
+        try:
+            img = qf.generate_price_chart(btc, hpos)
+        except Exception as exc:
+            log.warning("chart generation failed: %s", exc)
+            img = None
+    runtime.agent.post((text, img), dry_run=runtime.dry_run)
+
+
 def build_scheduler(agent_runtimes):
     sched = AsyncIOScheduler(timezone=timezone.utc)
 
@@ -65,4 +86,11 @@ def build_scheduler(agent_runtimes):
             next_run_time=datetime.utcnow(),
             id=f"{rt.agent.name}-mentions",
         )
+        if getattr(rt, "daily_job", False):
+            sched.add_job(
+                daily_price_post,
+                trigger=CronTrigger.from_crontab("0 21 * * *"),
+                args=[rt],
+                id=f"{rt.agent.name}-daily",
+            )
     return sched

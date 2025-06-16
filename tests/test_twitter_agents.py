@@ -136,7 +136,7 @@ def test_post_returns_int(monkeypatch, once_mode):
     assert isinstance(tweet_id, int) and tweet_id > 0
 
 
-def test_duplicate_guard(monkeypatch):
+def test_duplicate_guard(monkeypatch, caplog):
     agent = TwitterAgent(
         idx=1,
         name="DupAgent",
@@ -160,10 +160,19 @@ def test_duplicate_guard(monkeypatch):
             return DummyResponse(200 + self.count)
 
     agent.client = DummyClient()
-    first = agent.post("hello")
-    second = agent.post("hello")
+    with caplog.at_level("INFO"):
+        first = agent.post("hello")
+        second = agent.post("hello")
     assert first != -1
     assert second == -1
+    events = [getattr(r, "event", None) for r in caplog.records]
+    post_count = events.count("post")
+    dup_count = events.count("duplicate")
+    if post_count != 1 or dup_count != 1:
+        for r in caplog.records:
+            print(r.__dict__)
+    assert post_count == 1
+    assert dup_count == 1
 
 
 def test_dry_run_skips_post_and_reply(monkeypatch):

@@ -61,7 +61,11 @@ class TwitterAgent:
         if not self.dry_run:
             self.authenticate()
         else:
-            log.info("%s running in dry run mode", self.name)
+            log.info(
+                "%s running in dry run mode",
+                self.name,
+                extra={"agent": self.name, "event": "init"},
+            )
 
     def _load_creds_from_env(self) -> None:
         if not self.api_key:
@@ -73,7 +77,11 @@ class TwitterAgent:
 
     def authenticate(self) -> None:
         if self.dry_run:
-            log.info("%s authenticate skipped (dry run)", self.name)
+            log.info(
+                "%s authenticate skipped (dry run)",
+                self.name,
+                extra={"agent": self.name, "event": "auth_skip"},
+            )
             return
         # ---------- OAuth 1.0a (needed for user-context writes) ----------
         self._auth = tweepy.OAuth1UserHandler(
@@ -95,36 +103,14 @@ class TwitterAgent:
             wait_on_rate_limit=True,
         )
 
-        log.info("%s authenticated (v1 read, v2 write)", self.name)
+        log.info(
+            "%s authenticated (v1 read, v2 write)",
+            self.name,
+            extra={"agent": self.name, "event": "auth"},
+        )
 
     def craft_post(self) -> str:
-        greetings = [
-            "Hello",
-            "Hi there",
-            "Hey",
-            "Greetings",
-            "Howdy",
-            "Yo",
-            "Sup",
-            "What's up",
-            "Good day",
-            "Salutations"
-        ]
-        actions = [
-            "says",
-            "exclaims",
-            "whispers",
-            "shouts",
-            "murmurs",
-            "announces",
-            "proclaims",
-            "states",
-            "declares",
-            "expresses"
-        ]
-        greeting = random.choice(greetings)
-        action = random.choice(actions)
-        return f"{greeting}! {self.name} {action} this in a {self.personality} manner."
+        return quickfire.create_post(self.personality)
 
     def craft_reply(self, original_text: str) -> str:
         return quickfire.create_reply(self.personality, original_text)
@@ -132,14 +118,27 @@ class TwitterAgent:
     @retry(wait=wait_random_exponential(multiplier=2, max=60), stop=stop_after_attempt(5), reraise=True)
     def post(self, text: str) -> int:
         if _is_duplicate(text):
-            log.info("duplicate avoided")
+            log.info(
+                "duplicate avoided",
+                extra={"agent": self.name, "event": "duplicate"},
+            )
             return -1
         if self.dry_run:
-            log.info("%s post skipped (dry run): %s", self.name, text)
+            log.info(
+                "%s post skipped (dry run): %s",
+                self.name,
+                text,
+                extra={"agent": self.name, "event": "post_skip"},
+            )
             return -1
         resp = self.client.create_tweet(text=text)
         tweet_id = resp.data["id"]
-        log.info("%s posted tweet %s", self.name, tweet_id)
+        log.info(
+            "%s posted tweet %s",
+            self.name,
+            tweet_id,
+            extra={"agent": self.name, "event": "post"},
+        )
         _record_tweet(text)
         return tweet_id
 
@@ -153,16 +152,31 @@ class TwitterAgent:
         if text is None:
             text = self.craft_reply(original_text or "")
         if self.dry_run:
-            log.info("%s reply skipped (dry run) to %s: %s", self.name, tweet_id, text)
+            log.info(
+                "%s reply skipped (dry run) to %s: %s",
+                self.name,
+                tweet_id,
+                text,
+                extra={"agent": self.name, "event": "reply_skip"},
+            )
             return -1
         resp = self.client.create_tweet(text=text, in_reply_to_tweet_id=tweet_id)
         reply_id = resp.data["id"]
-        log.info("%s replied with %s", self.name, reply_id)
+        log.info(
+            "%s replied with %s",
+            self.name,
+            reply_id,
+            extra={"agent": self.name, "event": "reply"},
+        )
         return reply_id
 
     async def check_mentions(self, since_id: Optional[int] = None) -> int:
         if self.dry_run:
-            log.info("%s check_mentions skipped (dry run)", self.name)
+            log.info(
+                "%s check_mentions skipped (dry run)",
+                self.name,
+                extra={"agent": self.name, "event": "mentions_skip"},
+            )
             return since_id or 1
         timeline = self.api_v1.mentions_timeline(
             since_id=since_id, tweet_mode="extended", count=20
@@ -176,7 +190,17 @@ class TwitterAgent:
                     text=text,
                     in_reply_to_tweet_id=status.id,
                 )
-                log.info("%s replied to %s", self.name, status.id)
+                log.info(
+                    "%s replied to %s",
+                    self.name,
+                    status.id,
+                    extra={"agent": self.name, "event": "reply"},
+                )
             except tweepy.TweepyException as exc:
-                log.warning("%s reply failed: %s", self.name, exc)
+                log.warning(
+                    "%s reply failed: %s",
+                    self.name,
+                    exc,
+                    extra={"agent": self.name, "event": "error"},
+                )
         return new_since

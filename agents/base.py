@@ -41,14 +41,27 @@ class TwitterAgent:
         if self.dry_run:
             log.info("%s authenticate skipped (dry run)", self.name)
             return
-        auth = tweepy.OAuth1UserHandler(
+        # ---------- OAuth 1.0a (needed for user-context writes) ----------
+        self._auth = tweepy.OAuth1UserHandler(
             self.api_key,
             self.api_secret,
             self.access_token,
             self.access_secret,
         )
-        self.client = tweepy.API(auth, wait_on_rate_limit=True)
-        log.info("%s authenticated", self.name)
+
+        # v1.1 client (read-only for free tier)
+        self.api_v1 = tweepy.API(self._auth, wait_on_rate_limit=True)
+
+        # v2 client (write + read, same creds)
+        self.client = tweepy.Client(
+            consumer_key=self.api_key,
+            consumer_secret=self.api_secret,
+            access_token=self.access_token,
+            access_token_secret=self.access_secret,
+            wait_on_rate_limit=True,
+        )
+
+        log.info("%s authenticated (v1 read, v2 write)", self.name)
 
     def craft_post(self) -> str:
         return f"{self.name} says hello in a {self.personality} manner."
@@ -58,8 +71,8 @@ class TwitterAgent:
         if self.dry_run:
             log.info("%s post skipped (dry run): %s", self.name, text)
             return -1
-        status = self.client.update_status(status=text)
-        tweet_id = status.id
+        resp = self.client.create_tweet(text=text)
+        tweet_id = resp.data["id"]
         log.info("%s posted tweet %s", self.name, tweet_id)
         return tweet_id
 
@@ -70,12 +83,11 @@ class TwitterAgent:
                 "%s reply skipped (dry run) to %s: %s", self.name, tweet_id, text
             )
             return -1
-        status = self.client.update_status(
-            status=text,
-            in_reply_to_status_id=tweet_id,
-            auto_populate_reply_metadata=True,
+        resp = self.client.create_tweet(
+            text=text,
+            in_reply_to_tweet_id=tweet_id,
         )
-        reply_id = status.id
+        reply_id = resp.data["id"]
         log.info("%s replied with %s", self.name, reply_id)
         return reply_id
 
@@ -83,7 +95,7 @@ class TwitterAgent:
         if self.dry_run:
             log.info("%s check_mentions skipped (dry run)", self.name)
             return since_id or 1
-        timeline = self.client.mentions_timeline(
+        timeline = self.api_v1.mentions_timeline(
             since_id=since_id, tweet_mode="extended", count=20
         )
         new_since = since_id or 1
@@ -91,10 +103,9 @@ class TwitterAgent:
             new_since = max(status.id, new_since)
             text = f"@{status.user.screen_name} {self.name} replies in a {self.personality} style."
             try:
-                self.client.update_status(
-                    status=text,
-                    in_reply_to_status_id=status.id,
-                    auto_populate_reply_metadata=True,
+                self.client.create_tweet(
+                    text=text,
+                    in_reply_to_tweet_id=status.id,
                 )
                 log.info("%s replied to %s", self.name, status.id)
             except tweepy.TweepyException as exc:

@@ -1,4 +1,4 @@
-tweepy>=4.15,<5
+tweepy>=4.16,<5
 APScheduler>=3.10,<4
 python-dotenv>=1.0,<2
 tenacity>=8.2,<9

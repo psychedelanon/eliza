@@ -16,8 +16,15 @@ sys.modules.setdefault(
             (),
             {
                 "__init__": lambda self, *a, **k: None,
-                "update_status": lambda *a, **k: None,
                 "mentions_timeline": lambda *a, **k: [],
+            },
+        ),
+        Client=type(
+            "Client",
+            (),
+            {
+                "__init__": lambda self, *a, **k: None,
+                "create_tweet": lambda self, **_k: types.SimpleNamespace(data={"id": 123}),
             },
         ),
         TweepyException=Exception,
@@ -79,13 +86,13 @@ def test_post_returns_int(monkeypatch, once_mode):
         access_secret="ts",
     )
 
-    class DummyStatus:
+    class DummyResponse:
         def __init__(self, id):
-            self.id = id
+            self.data = {"id": id}
 
     class DummyClient:
-        def update_status(self, **kwargs):
-            return DummyStatus(123)
+        def create_tweet(self, **_kwargs):
+            return DummyResponse(123)
 
     agent.client = DummyClient()
     tweet_id = agent.post("hi")
@@ -104,7 +111,7 @@ def test_dry_run_skips_post_and_reply(monkeypatch):
         def __init__(self):
             self.called = False
 
-        def update_status(self, **_kwargs):
+        def create_tweet(self, **_kwargs):
             self.called = True
 
     agent.client = DummyClient()

@@ -58,6 +58,7 @@ class TwitterAgent:
     access_token: Optional[str] = field(repr=False, default=None)
     access_secret: Optional[str] = field(repr=False, default=None)
     client: Optional[tweepy.API] = field(init=False, default=None)
+    last_media_path: Optional[str] = field(init=False, default=None)
 
     def __post_init__(self) -> None:
         self._load_creds_from_env()
@@ -115,8 +116,18 @@ class TwitterAgent:
     def craft_post(self):
         text = qf.create_post(self.personality)
         if os.getenv("MEDIA_ENABLE", "false").lower() == "true":
-            img = qf.generate_image(self.personality, text)
-            return text, img
+            img_path = qf.generate_image(self.personality, text)
+            self.last_media_path = str(img_path)
+            log.info(
+                "media generated",
+                extra={
+                    "agent": self.name,
+                    "event": "media_ready",
+                    "path": self.last_media_path,
+                },
+            )
+            return text, self.last_media_path
+        self.last_media_path = None
         return text, None
 
     def craft_reply(self, original_text: str) -> str:

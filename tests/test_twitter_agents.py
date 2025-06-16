@@ -5,6 +5,7 @@ import subprocess
 import pytest
 import types
 import sqlite3
+from pathlib import Path
 
 sys.modules.setdefault(
     "tweepy",
@@ -217,6 +218,7 @@ def test_dry_run_skips_post_and_reply(monkeypatch):
 def test_cli_dry_run_event(tmp_path):
     env = os.environ.copy()
     env.update({"REPLY_DELAY_MIN": "0", "REPLY_DELAY_MAX": "0"})
+    env["AGENT_CONFIG"] = str(Path("configs/agents.yaml"))
     result = subprocess.run(
         [sys.executable, "run.py", "--demo", "--dry-run"],
         capture_output=True,
@@ -229,6 +231,7 @@ def test_cli_dry_run_event(tmp_path):
 def test_cli_demo_logging(tmp_path):
     env = os.environ.copy()
     env.update({"REPLY_DELAY_MIN": "0", "REPLY_DELAY_MAX": "0"})
+    env["AGENT_CONFIG"] = str(Path("configs/agents.yaml"))
     result = subprocess.run(
         [sys.executable, "run.py", "--demo", "--dry-run"],
         capture_output=True,

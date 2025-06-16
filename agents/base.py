@@ -9,8 +9,8 @@ from typing import Optional
 import time
 
 import quickfire
-import blacksmith_forge.quickfire as qf
 import openai
+import blacksmith_forge.quickfire as qf
 
 from metrics import TWEETS_POSTED, REPLIES_POSTED, OPENAI_CALLS
 
@@ -152,7 +152,7 @@ class TwitterAgent:
         return text, None
 
     def craft_reply(self, original_text: str) -> str:
-        return quickfire.create_reply(self.personality, original_text)
+        return qf.create_reply(self.personality, original_text)
 
     @retry(
         wait=wait_random_exponential(multiplier=2, max=60),

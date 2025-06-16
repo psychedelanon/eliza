@@ -6,6 +6,8 @@ import argparse
 import random
 import yaml
 from dotenv import load_dotenv
+import importlib.resources
+from pathlib import Path
 
 from agents.base import TwitterAgent
 from scheduler.tasks import AgentRuntime, build_scheduler
@@ -13,7 +15,11 @@ from metrics import init_metrics
 
 load_dotenv()
 
-logging.config.dictConfig(yaml.safe_load(open("config/logging.yaml")))
+ROOT = Path(__file__).resolve().parent
+logging.config.fileConfig(
+    ROOT / "config" / "logging.yaml",
+    disable_existing_loggers=False,
+)
 log = logging.getLogger("runner")
 log.debug("Environment loaded")
 

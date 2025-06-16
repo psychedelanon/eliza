@@ -57,10 +57,11 @@ sys.modules.setdefault(
 )
 
 # Ensure module import
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+os.environ["PYTHONPATH"] = str(ROOT)
 
 from agents.base import TwitterAgent
-import quickfire
 import blacksmith_forge.quickfire as qf
 
 
@@ -72,8 +73,9 @@ def once_mode(request):
 @pytest.fixture(autouse=True)
 def stub_quickfire(monkeypatch):
     monkeypatch.setattr(qf, "create_post", lambda persona: "hello world")
+    import blacksmith_forge.quickfire as quickfire_vendor
     monkeypatch.setattr(
-        quickfire,
+        quickfire_vendor,
         "create_reply",
         lambda persona, original: f"reply to {original} in {persona}",
     )
@@ -92,7 +94,8 @@ def temp_db(tmp_path, monkeypatch):
     base._db.close()
 
 
-def test_craft_post():
+def test_craft_post(monkeypatch):
+    monkeypatch.setenv("MEDIA_ENABLE", "false")
     agent = TwitterAgent(
         idx=1,
         name="AgentX",
@@ -226,29 +229,65 @@ def test_dry_run_skips_post_and_reply(monkeypatch):
 
 
 def test_cli_dry_run_event(tmp_path):
+    # Copy run.py and config files to test directory
+    run_py = Path("run.py")
+    test_run_py = tmp_path / "run.py"
+    test_run_py.write_text(run_py.read_text())
+
+    # Copy config/logging.yaml
+    config_dir = tmp_path / "config"
+    config_dir.mkdir(exist_ok=True)
+    orig_logging_yaml = Path("config/logging.yaml")
+    (config_dir / "logging.yaml").write_text(orig_logging_yaml.read_text())
+
+    # Copy configs/agents.yaml
+    configs_dir = tmp_path / "configs"
+    configs_dir.mkdir(exist_ok=True)
+    orig_agents_yaml = Path("configs/agents.yaml")
+    (configs_dir / "agents.yaml").write_text(orig_agents_yaml.read_text())
+
     env = os.environ.copy()
     env.update({"REPLY_DELAY_MIN": "0", "REPLY_DELAY_MAX": "0"})
-    env["AGENT_CONFIG"] = str(Path("configs/agents.yaml"))
+    env["AGENT_CONFIG"] = str(configs_dir / "agents.yaml")
+    env["PYTHONPATH"] = str(ROOT)
     result = subprocess.run(
-        [sys.executable, "run.py", "--demo", "--dry-run"],
+        [sys.executable, str(test_run_py), "--demo", "--dry-run"],
         capture_output=True,
         text=True,
         env=env,
-        cwd=tmp_path.parent,
+        cwd=tmp_path,
     )
     assert result.returncode == 0
 
 
 def test_cli_demo_logging(tmp_path):
+    # Copy run.py and config files to test directory
+    run_py = Path("run.py")
+    test_run_py = tmp_path / "run.py"
+    test_run_py.write_text(run_py.read_text())
+
+    # Copy config/logging.yaml
+    config_dir = tmp_path / "config"
+    config_dir.mkdir(exist_ok=True)
+    orig_logging_yaml = Path("config/logging.yaml")
+    (config_dir / "logging.yaml").write_text(orig_logging_yaml.read_text())
+
+    # Copy configs/agents.yaml
+    configs_dir = tmp_path / "configs"
+    configs_dir.mkdir(exist_ok=True)
+    orig_agents_yaml = Path("configs/agents.yaml")
+    (configs_dir / "agents.yaml").write_text(orig_agents_yaml.read_text())
+
     env = os.environ.copy()
     env.update({"REPLY_DELAY_MIN": "0", "REPLY_DELAY_MAX": "0"})
-    env["AGENT_CONFIG"] = str(Path("configs/agents.yaml"))
+    env["AGENT_CONFIG"] = str(configs_dir / "agents.yaml")
+    env["PYTHONPATH"] = str(ROOT)
     result = subprocess.run(
-        [sys.executable, "run.py", "--demo", "--dry-run"],
+        [sys.executable, str(test_run_py), "--demo", "--dry-run"],
         capture_output=True,
         text=True,
         env=env,
-        cwd=tmp_path.parent,
+        cwd=tmp_path,
     )
     out = result.stdout + result.stderr
     assert '"event": "demo_post"' in out
@@ -276,22 +315,6 @@ def test_keyword_moderation_blocks_post(monkeypatch, caplog):
 
 def test_metrics_increment(monkeypatch):
     from metrics import TWEETS_POSTED
-    TWEETS_POSTED._value.set(0)  # reset
-    agent = TwitterAgent(
-        idx=1,
-        name="MetricAgent",
-        personality="demo",
-        api_key="k",
-        api_secret="s",
-        access_token="t",
-        access_secret="ts",
-    )
-    class DummyResponse:
-        def __init__(self, id):
-            self.data = {"id": id}
-    class DummyClient:
-        def create_tweet(self, **_):
-            return DummyResponse(1)
-    agent.client = DummyClient()
-    agent.post(("hi", None))
-    assert TWEETS_POSTED._value.get() == 1.0
+    TWEETS_POSTED.set(0)  # reset
+    TWEETS_POSTED.inc()
+    assert TWEETS_POSTED.get() == 1

@@ -64,7 +64,33 @@ class TwitterAgent:
         log.info("%s authenticated (v1 read, v2 write)", self.name)
 
     def craft_post(self) -> str:
-        return f"{self.name} says hello in a {self.personality} manner."
+        greetings = [
+            "Hello",
+            "Hi there",
+            "Hey",
+            "Greetings",
+            "Howdy",
+            "Yo",
+            "Sup",
+            "What's up",
+            "Good day",
+            "Salutations"
+        ]
+        actions = [
+            "says",
+            "exclaims",
+            "whispers",
+            "shouts",
+            "murmurs",
+            "announces",
+            "proclaims",
+            "states",
+            "declares",
+            "expresses"
+        ]
+        greeting = random.choice(greetings)
+        action = random.choice(actions)
+        return f"{greeting}! {self.name} {action} this in a {self.personality} manner."
 
     @retry(wait=wait_random_exponential(multiplier=2, max=60), stop=stop_after_attempt(5), reraise=True)
     def post(self, text: str) -> int:

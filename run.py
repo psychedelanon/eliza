@@ -80,10 +80,29 @@ async def main():
         for rt in agent_runtimes:
             text = rt.agent.craft_post()
             tweet_id = rt.agent.post(text, dry_run=args.dry_run)
+            log.info(
+                "demo post", 
+                extra={
+                    "agent": rt.agent.name,
+                    "event": "demo_post",
+                    "post_id": tweet_id,
+                    "text": text,
+                },
+            )
             if tweet_id != -1:
                 await asyncio.sleep(random.uniform(REPLY_DELAY_MIN, REPLY_DELAY_MAX))
-                rt.agent.reply(
-                    tweet_id=tweet_id, original_text=text, dry_run=args.dry_run
+                reply_text = rt.agent.craft_reply(text)
+                reply_id = rt.agent.reply(
+                    tweet_id=tweet_id, text=reply_text, dry_run=args.dry_run
+                )
+                log.info(
+                    "demo reply",
+                    extra={
+                        "agent": rt.agent.name,
+                        "event": "demo_reply",
+                        "reply_id": reply_id,
+                        "text": reply_text,
+                    },
                 )
         return
 

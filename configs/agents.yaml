@@ -2,3 +2,8 @@ Agent1:
   persona: "friendly and upbeat"
   hashtags: ["#MemeMagic", "#CryptoLife"]
   media: true
+
+Agent2:
+  persona: "crypto market bot"
+  hashtags: ["#BTC", "#HPOS10I", "#Crypto"]
+  media: true

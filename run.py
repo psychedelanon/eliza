@@ -16,10 +16,9 @@ from metrics import init_metrics
 load_dotenv()
 
 ROOT = Path(__file__).resolve().parent
-logging.config.fileConfig(
-    ROOT / "config" / "logging.yaml",
-    disable_existing_loggers=False,
-)
+with open(ROOT / "config" / "logging.yaml") as f:
+    config = yaml.safe_load(f)
+logging.config.dictConfig(config)
 log = logging.getLogger("runner")
 log.debug("Environment loaded")
 
@@ -89,7 +88,12 @@ async def main():
     if args.dry_run:
         log.info("dry run mode", extra={"event": "dry_run"})
     agent_runtimes = [
-        AgentRuntime(a, dry_run=args.dry_run) for a in init_agents(configs, dry_run=args.dry_run)
+        AgentRuntime(
+            a,
+            dry_run=args.dry_run,
+            daily_job=a.name == "Agent2",
+        )
+        for a in init_agents(configs, dry_run=args.dry_run)
     ]
 
     if args.demo:

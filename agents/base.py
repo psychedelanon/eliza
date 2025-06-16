@@ -8,6 +8,7 @@ from pathlib import Path
 from datetime import datetime, timedelta
 from dataclasses import dataclass, field
 from typing import Optional
+import time
 
 import quickfire
 
@@ -43,6 +44,7 @@ def _record_tweet(text: str) -> None:
     h = _tweet_hash(text)
     _db.execute("INSERT OR IGNORE INTO tweets(text) VALUES(?)", (h,))
     _db.commit()
+
 
 @dataclass
 class TwitterAgent:
@@ -115,22 +117,29 @@ class TwitterAgent:
     def craft_reply(self, original_text: str) -> str:
         return quickfire.create_reply(self.personality, original_text)
 
-    @retry(wait=wait_random_exponential(multiplier=2, max=60), stop=stop_after_attempt(5), reraise=True)
-    def post(self, text: str) -> int:
+    @retry(
+        wait=wait_random_exponential(multiplier=2, max=60),
+        stop=stop_after_attempt(5),
+        reraise=True,
+    )
+    def post(self, text: str, *, dry_run: Optional[bool] = None) -> int:
+        if dry_run is None:
+            dry_run = self.dry_run
         if _is_duplicate(text):
             log.info(
                 "duplicate avoided",
                 extra={"agent": self.name, "event": "duplicate"},
             )
             return -1
-        if self.dry_run:
+        if dry_run:
             log.info(
-                "%s post skipped (dry run): %s",
+                "%s would post: %s",
                 self.name,
                 text,
-                extra={"agent": self.name, "event": "post_skip"},
+                extra={"agent": self.name, "event": "dry_run"},
             )
-            return -1
+            _record_tweet(text)
+            return int(time.time() * 1000)
         resp = self.client.create_tweet(text=text)
         tweet_id = resp.data["id"]
         log.info(
@@ -142,24 +151,32 @@ class TwitterAgent:
         _record_tweet(text)
         return tweet_id
 
-    @retry(wait=wait_random_exponential(multiplier=2, max=60), stop=stop_after_attempt(5), reraise=True)
+    @retry(
+        wait=wait_random_exponential(multiplier=2, max=60),
+        stop=stop_after_attempt(5),
+        reraise=True,
+    )
     def reply(
         self,
         tweet_id: int,
         text: Optional[str] = None,
         original_text: Optional[str] = None,
+        *,
+        dry_run: Optional[bool] = None,
     ) -> int:
         if text is None:
             text = self.craft_reply(original_text or "")
-        if self.dry_run:
+        if dry_run is None:
+            dry_run = self.dry_run
+        if dry_run:
             log.info(
-                "%s reply skipped (dry run) to %s: %s",
+                "%s would reply to %s: %s",
                 self.name,
                 tweet_id,
                 text,
-                extra={"agent": self.name, "event": "reply_skip"},
+                extra={"agent": self.name, "event": "dry_run"},
             )
-            return -1
+            return int(time.time() * 1000)
         resp = self.client.create_tweet(text=text, in_reply_to_tweet_id=tweet_id)
         reply_id = resp.data["id"]
         log.info(

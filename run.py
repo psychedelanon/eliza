@@ -12,6 +12,11 @@ from agents.personalities import PERSONALITIES
 from scheduler.tasks import AgentRuntime, build_scheduler
 
 load_dotenv()
+print("DEBUG: Loaded from .env:")
+print("TWITTER_AGENT1_API_KEY:", os.getenv("TWITTER_AGENT1_API_KEY"))
+print("TWITTER_AGENT1_API_SECRET:", os.getenv("TWITTER_AGENT1_API_SECRET"))
+print("TWITTER_AGENT1_ACCESS_TOKEN:", os.getenv("TWITTER_AGENT1_ACCESS_TOKEN"))
+print("TWITTER_AGENT1_ACCESS_SECRET:", os.getenv("TWITTER_AGENT1_ACCESS_SECRET"))
 
 with open("config/logging.yaml") as f:
     logging.config.dictConfig(yaml.safe_load(f))

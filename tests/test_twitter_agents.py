@@ -214,3 +214,17 @@ def test_cli_dry_run_event(tmp_path):
         env=env,
     )
     assert '"event": "dry_run"' in result.stdout + result.stderr
+
+
+def test_cli_demo_logging(tmp_path):
+    env = os.environ.copy()
+    env.update({"REPLY_DELAY_MIN": "0", "REPLY_DELAY_MAX": "0"})
+    result = subprocess.run(
+        [sys.executable, "run.py", "--demo", "--dry-run"],
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+    out = result.stdout + result.stderr
+    assert '"event": "demo_post"' in out
+    assert '"event": "demo_reply"' in out

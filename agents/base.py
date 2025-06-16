@@ -158,9 +158,16 @@ class TwitterAgent:
             _record_tweet(text)
             return int(time.time() * 1000)
         if img_path is not None:
-            # TODO: upload media when dry_run is False
-            pass
-        resp = self.client.create_tweet(text=text)
+            media_id = self.client.upload_media(img_path)
+            resp = self.client.create_tweet(text=text, media_ids=[media_id])
+            log.info(
+                "%s uploaded media %s",
+                self.name,
+                media_id,
+                extra={"agent": self.name, "event": "media_post"},
+            )
+        else:
+            resp = self.client.create_tweet(text=text)
         tweet_id = resp.data["id"]
         log.info(
             "%s posted tweet %s",

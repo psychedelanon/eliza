@@ -30,6 +30,7 @@ sys.modules.setdefault(
                 "create_tweet": lambda self, **_k: types.SimpleNamespace(
                     data={"id": 123}
                 ),
+                "upload_media": lambda self, _path: 456,
             },
         ),
         TweepyException=Exception,
@@ -194,17 +195,23 @@ def test_dry_run_skips_post_and_reply(monkeypatch):
     class DummyClient:
         def __init__(self):
             self.called = False
+            self.uploaded = False
 
         def create_tweet(self, **_kwargs):
             self.called = True
 
+        def upload_media(self, _path):
+            self.uploaded = True
+            return 789
+
     agent.client = DummyClient()
-    post_id = agent.post(("hi", None))
+    post_id = agent.post(("hi", "img.png"))
     reply_id = agent.reply(tweet_id=123, text="reply")
 
     assert post_id > 0
     assert reply_id > 0
     assert agent.client.called is False
+    assert agent.client.uploaded is False
 
 
 def test_cli_dry_run_event(tmp_path):

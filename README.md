@@ -87,6 +87,20 @@ cp .env.example .env
 
 Note: .env is optional. If you're planning to run multiple distinct agents, you can pass secrets through the character JSON
 
+#### Install Python Dependencies
+
+Some features, including the scheduler and Python-based tests, require additional Python packages such as `APScheduler`. Install them with:
+
+```bash
+pip install -r requirements.txt
+```
+
+You can also run the `setup.sh` script, which installs both Node dependencies (including `turbo`) and these Python requirements:
+
+```bash
+bash setup.sh
+```
+
 #### Start Eliza
 
 Important! We now use Bun. If you are using npm, you will need to install Bun:

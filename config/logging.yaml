@@ -1,11 +1,16 @@
 version: 1
 formatters:
-  std:
-    format: "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
+  json:
+    '()': pythonjsonlogger.jsonlogger.JsonFormatter
+    format: '%(asctime)s %(levelname)s %(agent)s %(event)s %(message)s'
+    rename_fields:
+      asctime: timestamp
+      levelname: level
+      message: msg
 handlers:
   console:
     class: logging.StreamHandler
-    formatter: std
+    formatter: json
 root:
   level: INFO
   handlers: [console]

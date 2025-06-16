@@ -1,7 +1,7 @@
 import asyncio
 import random
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.interval import IntervalTrigger
@@ -29,10 +29,11 @@ def build_scheduler(agent_runtimes):
 
     for rt in agent_runtimes:
         initial_offset = random.randint(0, 300)
+        next_run = datetime.utcnow() + timedelta(seconds=initial_offset)
         sched.add_job(
             rt.periodic_post,
             trigger=IntervalTrigger(minutes=30, start_date=datetime.utcnow(), jitter=120),
-            next_run_time=datetime.utcnow(),
+            next_run_time=next_run,
             id=f"{rt.agent.name}-post",
         )
 

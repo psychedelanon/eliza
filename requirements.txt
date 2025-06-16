@@ -8,3 +8,5 @@ rich>=13
 git+https://github.com/psychedelanon/blacksmith-forge.git@main#egg=blacksmith-forge
 openai>=1.0
 prometheus-client>=0.17
+requests>=2.32
+matplotlib>=3.9

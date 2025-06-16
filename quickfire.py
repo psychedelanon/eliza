@@ -1,12 +1,25 @@
 import logging
 import os
 import random
-from typing import Optional
+from typing import List, Optional
 
 log = logging.getLogger("quickfire")
 
-# Hashtags used to spice up posts
-HASH_TAGS = ["#Alpha", "#CryptoLife", "#OnChain", "#MemeMagic"]
+# Default hashtags used to spice up posts
+DEFAULT_HASH_TAGS = ["#Alpha", "#CryptoLife", "#OnChain", "#MemeMagic"]
+
+# Environment variable for overriding hashtags
+_HASHTAG_ENV = "AQUA_HASHTAGS"
+
+
+def _get_hashtags() -> List[str]:
+    """Return hashtags from the environment variable if provided."""
+    env_val = os.getenv(_HASHTAG_ENV)
+    if env_val:
+        tags = [t.strip() for t in env_val.split(",") if t.strip()]
+        if tags:
+            return tags
+    return DEFAULT_HASH_TAGS
 
 
 def is_live() -> bool:
@@ -47,9 +60,10 @@ def create_post(persona: str) -> str:
             },
         )
         text = resp.choices[0].message["content"].strip()
+    hashtags = _get_hashtags()
     # Add flavour with hashtags and emojis
     text += (
-        " " + random.choice(HASH_TAGS) + " " + random.choice(["🔥", "⚡", "🚀", "✨"])
+        " " + random.choice(hashtags) + " " + random.choice(["🔥", "⚡", "🚀", "✨"])
     )
     return text
 

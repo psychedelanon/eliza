@@ -49,6 +49,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 
 from agents.base import TwitterAgent
 import quickfire
+import blacksmith_forge.quickfire as qf
 
 
 @pytest.fixture(params=["--once"])
@@ -58,7 +59,7 @@ def once_mode(request):
 
 @pytest.fixture(autouse=True)
 def stub_quickfire(monkeypatch):
-    monkeypatch.setattr(quickfire, "create_post", lambda persona: "stub post")
+    monkeypatch.setattr(qf, "create_post", lambda persona: "hello world")
     monkeypatch.setattr(
         quickfire,
         "create_reply",
@@ -89,7 +90,9 @@ def test_craft_post():
         access_token="t",
         access_secret="ts",
     )
-    assert isinstance(agent.craft_post(), str)
+    text, img = agent.craft_post()
+    assert text == "hello world"
+    assert img is None
 
 
 def test_craft_reply():
@@ -137,7 +140,7 @@ def test_post_returns_int(monkeypatch, once_mode):
             return DummyResponse(123)
 
     agent.client = DummyClient()
-    tweet_id = agent.post("hi")
+    tweet_id = agent.post(("hi", None))
     assert isinstance(tweet_id, int) and tweet_id > 0
 
 
@@ -166,8 +169,8 @@ def test_duplicate_guard(monkeypatch, caplog):
 
     agent.client = DummyClient()
     with caplog.at_level("INFO"):
-        first = agent.post("hello")
-        second = agent.post("hello")
+        first = agent.post(("hello", None))
+        second = agent.post(("hello", None))
     assert first != -1
     assert second == -1
     events = [getattr(r, "event", None) for r in caplog.records]
@@ -196,7 +199,7 @@ def test_dry_run_skips_post_and_reply(monkeypatch):
             self.called = True
 
     agent.client = DummyClient()
-    post_id = agent.post("hi")
+    post_id = agent.post(("hi", None))
     reply_id = agent.reply(tweet_id=123, text="reply")
 
     assert post_id > 0

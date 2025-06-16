@@ -11,6 +11,7 @@ from typing import Optional
 import time
 
 import quickfire
+import blacksmith_forge.quickfire as qf
 
 import tweepy
 from tenacity import retry, wait_random_exponential, stop_after_attempt
@@ -111,8 +112,12 @@ class TwitterAgent:
             extra={"agent": self.name, "event": "auth"},
         )
 
-    def craft_post(self) -> str:
-        return quickfire.create_post(self.personality)
+    def craft_post(self):
+        text = qf.create_post(self.personality)
+        if os.getenv("MEDIA_ENABLE", "false").lower() == "true":
+            img = qf.generate_image(self.personality, text)
+            return text, img
+        return text, None
 
     def craft_reply(self, original_text: str) -> str:
         return quickfire.create_reply(self.personality, original_text)
@@ -122,7 +127,8 @@ class TwitterAgent:
         stop=stop_after_attempt(5),
         reraise=True,
     )
-    def post(self, text: str, *, dry_run: Optional[bool] = None) -> int:
+    def post(self, post: tuple[str, Optional[str]], *, dry_run: Optional[bool] = None) -> int:
+        text, img_path = post
         if dry_run is None:
             dry_run = self.dry_run
         if _is_duplicate(text):
@@ -140,6 +146,9 @@ class TwitterAgent:
             )
             _record_tweet(text)
             return int(time.time() * 1000)
+        if img_path is not None:
+            # TODO: upload media when dry_run is False
+            pass
         resp = self.client.create_tweet(text=text)
         tweet_id = resp.data["id"]
         log.info(

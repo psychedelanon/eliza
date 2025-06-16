@@ -74,10 +74,10 @@ async def main():
 
     if args.demo:
         for rt in agent_runtimes:
-            text = rt.agent.craft_post()
-            tweet_id = rt.agent.post(text, dry_run=args.dry_run)
+            text, img_path = rt.agent.craft_post()
+            tweet_id = rt.agent.post((text, img_path), dry_run=args.dry_run)
             log.info(
-                "demo post", 
+                "demo post",
                 extra={
                     "agent": rt.agent.name,
                     "event": "demo_post",

@@ -1,5 +1,9 @@
 import asyncio
+import os
+import sys
 from pathlib import Path
+
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 import scheduler.tasks as tasks
 
@@ -21,6 +25,7 @@ class DummyRuntime:
 def test_daily_price_post(monkeypatch):
     monkeypatch.setattr(tasks.prices, "get_prices", lambda: (30000, 0.00123))
     monkeypatch.setattr(tasks.qf, "generate_price_chart", lambda b, h: Path("stub.png"))
+    monkeypatch.setenv("MEDIA_ENABLE", "true")
 
     rt = DummyRuntime()
     asyncio.run(tasks.daily_price_post(rt))

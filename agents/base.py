@@ -163,17 +163,34 @@ class TwitterAgent:
         text, img_path = post
         if dry_run is None:
             dry_run = self.dry_run
+        reason = None
         if not _passes_moderation(text):
+            reason = "moderation"
             log.warning(
                 "%s blocked by moderation",
                 self.name,
                 extra={"agent": self.name, "event": "moderation_blocked"},
             )
+            log.debug(
+                "%s skip reason=%s text=%r",
+                self.name,
+                reason,
+                text,
+                extra={"agent": self.name, "event": "skip", "reason": reason},
+            )
             return -1
         if _is_duplicate(text):
+            reason = "duplicate"
             log.info(
                 "duplicate avoided",
                 extra={"agent": self.name, "event": "duplicate"},
+            )
+            log.debug(
+                "%s skip reason=%s text=%r",
+                self.name,
+                reason,
+                text,
+                extra={"agent": self.name, "event": "skip", "reason": reason},
             )
             return -1
         if dry_run:
@@ -181,7 +198,7 @@ class TwitterAgent:
                 "%s would post: %s",
                 self.name,
                 text,
-                extra={"agent": self.name, "event": "dry_run"},
+                extra={"agent": self.name, "event": "posted", "dry": True},
             )
             _record_tweet(text)
             return int(time.time() * 1000)
@@ -202,7 +219,7 @@ class TwitterAgent:
             "%s posted tweet %s",
             self.name,
             tweet_id,
-            extra={"agent": self.name, "event": "post"},
+            extra={"agent": self.name, "event": "posted", "dry": False},
         )
         _record_tweet(text)
         return tweet_id

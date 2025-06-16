@@ -1,17 +1,20 @@
 import importlib
 from pathlib import Path
 import random, tempfile
+import time
 
 # Simple wrapper around the local quickfire module.
 local_qf = importlib.import_module('quickfire')
 
 
 def create_post(persona: str) -> str:
-    return f"Hello world – {persona}"
+    suffix = f" [{int(time.time()*1000)%1_000_000}]"
+    return f"Hello world{suffix} – {persona}"
 
 
 def create_reply(persona: str, original: str) -> str:
-    return f"Re {original[:40]} – {persona}"
+    suffix = f" [{int(time.time()*1000)%1_000_000}]"
+    return f"Re {original[:40]}{suffix} – {persona}"
 
 
 def generate_image(persona_config, text):

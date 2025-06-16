@@ -16,6 +16,7 @@ def is_live() -> bool:
 
 def _get_openai() -> Optional[object]:
     if not is_live():
+        log.info("OPENAI_API_KEY not set; using OpenAI fallback stub")
         return None
     try:
         import openai  # type: ignore

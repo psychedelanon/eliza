@@ -53,7 +53,8 @@ def test_demo_smoke(monkeypatch, tmp_path, caplog):
     assert "duplicate avoided" in log2
 
     # 2. OpenAI fallback stub is used
-    assert "OpenAI fallback stub" in log1 or "OpenAI fallback stub" in log2
+    expected = "OPENAI_API_KEY not set; using OpenAI fallback stub"
+    assert expected in log1 or expected in log2
 
     # 3. Reply delay is between 1 and 2 seconds
     assert any(1 <= float(secs) <= 2 for secs in sleep_calls), f"Delays: {sleep_calls}"

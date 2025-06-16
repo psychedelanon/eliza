@@ -1,7 +1,5 @@
 import os
 import logging
-import asyncio
-import random
 import sqlite3
 import hashlib
 from pathlib import Path
@@ -11,11 +9,19 @@ from typing import Optional
 import time
 
 import quickfire
+import blacksmith_forge.quickfire as qf
+import openai
+
+from metrics import TWEETS_POSTED, REPLIES_POSTED, OPENAI_CALLS
 
 import tweepy
 from tenacity import retry, wait_random_exponential, stop_after_attempt
 
 log = logging.getLogger("agent")
+
+OPENAI_KEY = os.getenv("OPENAI_API_KEY")
+openai_client = openai.OpenAI(api_key=OPENAI_KEY) if OPENAI_KEY else None
+BANNED_WORDS = {"spam", "scam"}
 
 DB_PATH = Path("data/eliza.sqlite")
 TWEET_DEDUP_WINDOW = int(os.getenv("TWEET_DEDUP_WINDOW", "7"))
@@ -28,6 +34,21 @@ _db.execute(
 cutoff = datetime.utcnow() - timedelta(days=TWEET_DEDUP_WINDOW)
 _db.execute("DELETE FROM tweets WHERE ts < ?", (cutoff.isoformat(),))
 _db.commit()
+
+
+def _passes_moderation(text: str) -> bool:
+    if openai_client:
+        try:
+            resp = openai_client.moderations.create(input=text)
+            if resp.results[0].flagged:
+                return False
+        except Exception as exc:
+            log.warning("openai moderation failed: %s", exc)
+    lower = text.lower()
+    for w in BANNED_WORDS:
+        if w in lower:
+            return False
+    return True
 
 
 def _tweet_hash(text: str) -> str:
@@ -57,6 +78,7 @@ class TwitterAgent:
     access_token: Optional[str] = field(repr=False, default=None)
     access_secret: Optional[str] = field(repr=False, default=None)
     client: Optional[tweepy.API] = field(init=False, default=None)
+    last_media_path: Optional[str] = field(init=False, default=None)
 
     def __post_init__(self) -> None:
         self._load_creds_from_env()
@@ -111,8 +133,23 @@ class TwitterAgent:
             extra={"agent": self.name, "event": "auth"},
         )
 
-    def craft_post(self) -> str:
-        return quickfire.create_post(self.personality)
+    def craft_post(self):
+        OPENAI_CALLS.inc()
+        text = qf.create_post(self.personality)
+        if os.getenv("MEDIA_ENABLE", "false").lower() == "true":
+            img_path = qf.generate_image(self.personality, text)
+            self.last_media_path = str(img_path)
+            log.info(
+                "media generated",
+                extra={
+                    "agent": self.name,
+                    "event": "media_ready",
+                    "path": self.last_media_path,
+                },
+            )
+            return text, self.last_media_path
+        self.last_media_path = None
+        return text, None
 
     def craft_reply(self, original_text: str) -> str:
         return quickfire.create_reply(self.personality, original_text)
@@ -122,9 +159,17 @@ class TwitterAgent:
         stop=stop_after_attempt(5),
         reraise=True,
     )
-    def post(self, text: str, *, dry_run: Optional[bool] = None) -> int:
+    def post(self, post: tuple[str, Optional[str]], *, dry_run: Optional[bool] = None) -> int:
+        text, img_path = post
         if dry_run is None:
             dry_run = self.dry_run
+        if not _passes_moderation(text):
+            log.warning(
+                "%s blocked by moderation",
+                self.name,
+                extra={"agent": self.name, "event": "moderation_blocked"},
+            )
+            return -1
         if _is_duplicate(text):
             log.info(
                 "duplicate avoided",
@@ -140,8 +185,19 @@ class TwitterAgent:
             )
             _record_tweet(text)
             return int(time.time() * 1000)
-        resp = self.client.create_tweet(text=text)
+        if img_path is not None:
+            media_id = self.client.upload_media(img_path)
+            resp = self.client.create_tweet(text=text, media_ids=[media_id])
+            log.info(
+                "%s uploaded media %s",
+                self.name,
+                media_id,
+                extra={"agent": self.name, "event": "media_post"},
+            )
+        else:
+            resp = self.client.create_tweet(text=text)
         tweet_id = resp.data["id"]
+        TWEETS_POSTED.inc()
         log.info(
             "%s posted tweet %s",
             self.name,
@@ -177,8 +233,16 @@ class TwitterAgent:
                 extra={"agent": self.name, "event": "dry_run"},
             )
             return int(time.time() * 1000)
+        if not _passes_moderation(text):
+            log.warning(
+                "%s reply blocked by moderation",
+                self.name,
+                extra={"agent": self.name, "event": "moderation_blocked"},
+            )
+            return -1
         resp = self.client.create_tweet(text=text, in_reply_to_tweet_id=tweet_id)
         reply_id = resp.data["id"]
+        REPLIES_POSTED.inc()
         log.info(
             "%s replied with %s",
             self.name,

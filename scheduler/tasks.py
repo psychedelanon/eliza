@@ -20,8 +20,17 @@ class AgentRuntime:
         self.last_mention_id = None
 
     async def periodic_post(self):
-        text = self.agent.craft_post()
-        tweet_id = self.agent.post(text, dry_run=self.dry_run)
+        text, img_path = self.agent.craft_post()
+        tweet_id = self.agent.post((text, img_path), dry_run=self.dry_run)
+        if img_path and not self.dry_run:
+            log.info(
+                "media ready",
+                extra={
+                    "agent": self.agent.name,
+                    "event": "media_ready",
+                    "path": img_path,
+                },
+            )
         if tweet_id != -1:
             await asyncio.sleep(random.uniform(REPLY_DELAY_MIN, REPLY_DELAY_MAX))
             self.agent.reply(

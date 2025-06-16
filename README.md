@@ -94,6 +94,8 @@ Some features, including the scheduler and Python-based tests, require additiona
 ```bash
 pip install -r requirements.txt
 ```
+This includes the optional Quickfire generation library provided by the
+[blacksmith-forge](https://github.com/psychedelanon/blacksmith-forge) project.
 
 You can also run the `setup.sh` script, which installs both Node dependencies (including `turbo`) and these Python requirements:
 
@@ -171,6 +173,11 @@ export AQUA_HASHTAGS="#Foo,#Bar,#Baz"
 
 If provided, these comma-separated tags will be chosen instead of the built in
 defaults.
+
+### Metrics
+
+Set `METRICS_PORT` to expose Prometheus metrics at `/metrics`. The default port
+is `8000`.
 
 ---
 

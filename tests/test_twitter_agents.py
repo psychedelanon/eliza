@@ -1,10 +1,11 @@
 import os
+# ruff: noqa: E402
 import sys
-import asyncio
 import subprocess
 import pytest
 import types
 import sqlite3
+from pathlib import Path
 
 sys.modules.setdefault(
     "tweepy",
@@ -30,9 +31,20 @@ sys.modules.setdefault(
                 "create_tweet": lambda self, **_k: types.SimpleNamespace(
                     data={"id": 123}
                 ),
+                "upload_media": lambda self, _path: 456,
             },
         ),
         TweepyException=Exception,
+    ),
+)
+sys.modules.setdefault(
+    "openai",
+    types.SimpleNamespace(
+        OpenAI=lambda api_key=None: types.SimpleNamespace(
+            moderations=types.SimpleNamespace(
+                create=lambda input: types.SimpleNamespace(results=[types.SimpleNamespace(flagged=False)])
+            )
+        )
     ),
 )
 sys.modules.setdefault(
@@ -49,6 +61,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 
 from agents.base import TwitterAgent
 import quickfire
+import blacksmith_forge.quickfire as qf
 
 
 @pytest.fixture(params=["--once"])
@@ -58,7 +71,7 @@ def once_mode(request):
 
 @pytest.fixture(autouse=True)
 def stub_quickfire(monkeypatch):
-    monkeypatch.setattr(quickfire, "create_post", lambda persona: "stub post")
+    monkeypatch.setattr(qf, "create_post", lambda persona: "hello world")
     monkeypatch.setattr(
         quickfire,
         "create_reply",
@@ -89,7 +102,9 @@ def test_craft_post():
         access_token="t",
         access_secret="ts",
     )
-    assert isinstance(agent.craft_post(), str)
+    text, img = agent.craft_post()
+    assert text == "hello world"
+    assert img is None
 
 
 def test_craft_reply():
@@ -137,7 +152,7 @@ def test_post_returns_int(monkeypatch, once_mode):
             return DummyResponse(123)
 
     agent.client = DummyClient()
-    tweet_id = agent.post("hi")
+    tweet_id = agent.post(("hi", None))
     assert isinstance(tweet_id, int) and tweet_id > 0
 
 
@@ -166,8 +181,8 @@ def test_duplicate_guard(monkeypatch, caplog):
 
     agent.client = DummyClient()
     with caplog.at_level("INFO"):
-        first = agent.post("hello")
-        second = agent.post("hello")
+        first = agent.post(("hello", None))
+        second = agent.post(("hello", None))
     assert first != -1
     assert second == -1
     events = [getattr(r, "event", None) for r in caplog.records]
@@ -191,22 +206,29 @@ def test_dry_run_skips_post_and_reply(monkeypatch):
     class DummyClient:
         def __init__(self):
             self.called = False
+            self.uploaded = False
 
         def create_tweet(self, **_kwargs):
             self.called = True
 
+        def upload_media(self, _path):
+            self.uploaded = True
+            return 789
+
     agent.client = DummyClient()
-    post_id = agent.post("hi")
+    post_id = agent.post(("hi", "img.png"))
     reply_id = agent.reply(tweet_id=123, text="reply")
 
     assert post_id > 0
     assert reply_id > 0
     assert agent.client.called is False
+    assert agent.client.uploaded is False
 
 
 def test_cli_dry_run_event(tmp_path):
     env = os.environ.copy()
     env.update({"REPLY_DELAY_MIN": "0", "REPLY_DELAY_MAX": "0"})
+    env["AGENT_CONFIG"] = str(Path("configs/agents.yaml"))
     result = subprocess.run(
         [sys.executable, "run.py", "--demo", "--dry-run"],
         capture_output=True,
@@ -219,6 +241,7 @@ def test_cli_dry_run_event(tmp_path):
 def test_cli_demo_logging(tmp_path):
     env = os.environ.copy()
     env.update({"REPLY_DELAY_MIN": "0", "REPLY_DELAY_MAX": "0"})
+    env["AGENT_CONFIG"] = str(Path("configs/agents.yaml"))
     result = subprocess.run(
         [sys.executable, "run.py", "--demo", "--dry-run"],
         capture_output=True,
@@ -228,3 +251,45 @@ def test_cli_demo_logging(tmp_path):
     out = result.stdout + result.stderr
     assert '"event": "demo_post"' in out
     assert '"event": "demo_reply"' in out
+
+
+def test_keyword_moderation_blocks_post(monkeypatch, caplog):
+    import agents.base as base
+    monkeypatch.setattr(base, "BANNED_WORDS", {"badword"})
+    agent = base.TwitterAgent(
+        idx=1,
+        name="ModAgent",
+        personality="demo",
+        api_key="k",
+        api_secret="s",
+        access_token="t",
+        access_secret="ts",
+    )
+    with caplog.at_level("WARNING"):
+        res = agent.post(("this contains badword", None))
+    assert res == -1
+    events = [getattr(r, "event", None) for r in caplog.records]
+    assert "moderation_blocked" in events
+
+
+def test_metrics_increment(monkeypatch):
+    from metrics import TWEETS_POSTED
+    TWEETS_POSTED._value.set(0)  # reset
+    agent = TwitterAgent(
+        idx=1,
+        name="MetricAgent",
+        personality="demo",
+        api_key="k",
+        api_secret="s",
+        access_token="t",
+        access_secret="ts",
+    )
+    class DummyResponse:
+        def __init__(self, id):
+            self.data = {"id": id}
+    class DummyClient:
+        def create_tweet(self, **_):
+            return DummyResponse(1)
+    agent.client = DummyClient()
+    agent.post(("hi", None))
+    assert TWEETS_POSTED._value.get() == 1.0

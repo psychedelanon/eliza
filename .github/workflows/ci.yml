@@ -1,0 +1,16 @@
+name: CI
+on:
+  pull_request:
+  push:
+jobs:
+  lint-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      - run: pip install -r requirements.txt
+      - run: pip install pytest ruff
+      - run: ruff agents scheduler run.py metrics.py tests
+      - run: pytest -q

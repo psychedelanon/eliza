@@ -97,6 +97,16 @@ install_dependencies() {
     bun install
 }
 
+# Function to install Python dependencies
+install_python_dependencies() {
+    if command_exists python3; then
+        print_message "$YELLOW" "Installing Python dependencies..."
+        python3 -m pip install -r requirements.txt
+    else
+        print_message "$RED" "Python3 is not installed. Skipping Python dependency installation."
+    fi
+}
+
 # Function to build the project
 build_project() {
     print_message "$YELLOW" "Building project..."
@@ -145,6 +155,9 @@ create_config_files
 # Install dependencies
 install_dependencies
 
+# Install Python dependencies
+install_python_dependencies
+
 # Build the project
 build_project
 
@@ -161,3 +174,6 @@ print_message "$YELLOW" "Note: Make sure to configure your .env file with the ne
 # Show Docker status
 if ! check_docker; then
     print_message "$BLUE" "Some features may require Docker. You can install it later and run 'docker-compose up' to enable those features." 
+fi
+
+

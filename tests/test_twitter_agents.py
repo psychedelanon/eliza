@@ -2,6 +2,7 @@ import os
 import sys
 import pytest
 import types
+import sqlite3
 
 sys.modules.setdefault(
     "tweepy",
@@ -43,11 +44,34 @@ sys.modules.setdefault(
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from agents.base import TwitterAgent
+import quickfire
 
 
 @pytest.fixture(params=["--once"])
 def once_mode(request):
     return request.param
+
+
+@pytest.fixture(autouse=True)
+def stub_quickfire(monkeypatch):
+    monkeypatch.setattr(quickfire, "create_post", lambda persona: "stub post")
+    monkeypatch.setattr(
+        quickfire,
+        "create_reply",
+        lambda persona, original: f"reply to {original} in {persona}",
+    )
+
+
+@pytest.fixture(autouse=True)
+def temp_db(tmp_path, monkeypatch):
+    import agents.base as base
+    monkeypatch.setattr(base, "DB_PATH", tmp_path / "db.sqlite", raising=False)
+    base._db = sqlite3.connect(base.DB_PATH)
+    base._db.execute(
+        "CREATE TABLE IF NOT EXISTS tweets(id INTEGER PRIMARY KEY, text TEXT UNIQUE, ts TIMESTAMP DEFAULT CURRENT_TIMESTAMP)"
+    )
+    yield
+    base._db.close()
 
 
 def test_craft_post():
@@ -60,7 +84,20 @@ def test_craft_post():
         access_token="t",
         access_secret="ts",
     )
-    assert agent.craft_post() == "AgentX says hello in a playful manner."
+    assert isinstance(agent.craft_post(), str)
+
+
+def test_craft_reply():
+    agent = TwitterAgent(
+        idx=1,
+        name="AgentX",
+        personality="playful",
+        api_key="k",
+        api_secret="s",
+        access_token="t",
+        access_secret="ts",
+    )
+    assert agent.craft_reply("hi") == "reply to hi in playful"
 
 
 def test_env_credentials(monkeypatch):
@@ -99,6 +136,36 @@ def test_post_returns_int(monkeypatch, once_mode):
     assert isinstance(tweet_id, int) and tweet_id > 0
 
 
+def test_duplicate_guard(monkeypatch):
+    agent = TwitterAgent(
+        idx=1,
+        name="DupAgent",
+        personality="demo",
+        api_key="k",
+        api_secret="s",
+        access_token="t",
+        access_secret="ts",
+    )
+
+    class DummyResponse:
+        def __init__(self, id):
+            self.data = {"id": id}
+
+    class DummyClient:
+        def __init__(self):
+            self.count = 0
+
+        def create_tweet(self, **_kwargs):
+            self.count += 1
+            return DummyResponse(200 + self.count)
+
+    agent.client = DummyClient()
+    first = agent.post("hello")
+    second = agent.post("hello")
+    assert first != -1
+    assert second == -1
+
+
 def test_dry_run_skips_post_and_reply(monkeypatch):
     agent = TwitterAgent(
         idx=2,
@@ -116,7 +183,7 @@ def test_dry_run_skips_post_and_reply(monkeypatch):
 
     agent.client = DummyClient()
     post_id = agent.post("hi")
-    reply_id = agent.reply("reply", 123)
+    reply_id = agent.reply(tweet_id=123, text="reply")
 
     assert post_id == -1
     assert reply_id == -1

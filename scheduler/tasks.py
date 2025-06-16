@@ -1,12 +1,16 @@
 import asyncio
 import random
 import logging
+import os
 from datetime import datetime, timezone, timedelta
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 
 log = logging.getLogger("sched")
+
+REPLY_DELAY_MIN = int(os.getenv("REPLY_DELAY_MIN", "5"))
+REPLY_DELAY_MAX = int(os.getenv("REPLY_DELAY_MAX", "20"))
 
 class AgentRuntime:
     def __init__(self, agent):
@@ -15,8 +19,10 @@ class AgentRuntime:
 
     async def periodic_post(self):
         text = self.agent.craft_post()
-        self.agent.post(text)
-        await asyncio.sleep(0)
+        tweet_id = self.agent.post(text)
+        if tweet_id != -1:
+            await asyncio.sleep(random.uniform(REPLY_DELAY_MIN, REPLY_DELAY_MAX))
+            self.agent.reply(tweet_id=tweet_id, original_text=text)
 
     async def monitor_mentions(self):
         self.last_mention_id = await self.agent.check_mentions(

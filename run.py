@@ -3,6 +3,7 @@ import logging
 import logging.config
 import os
 import argparse
+import random
 import yaml
 from dotenv import load_dotenv
 
@@ -10,18 +11,15 @@ from agents.base import TwitterAgent
 from agents.personalities import PERSONALITIES
 from scheduler.tasks import AgentRuntime, build_scheduler
 
-print("\nDEBUG: Current working directory:", os.getcwd())
-print("DEBUG: Checking if .env exists:", os.path.exists(".env"))
 load_dotenv()
-print("DEBUG: All environment variables after load_dotenv:")
-for key in os.environ:
-    if key.startswith("TWITTER_"):
-        print(f"{key}: {'*' * 10 if 'SECRET' in key else os.getenv(key)}")
 
 with open("config/logging.yaml") as f:
     logging.config.dictConfig(yaml.safe_load(f))
 
 log = logging.getLogger("runner")
+
+REPLY_DELAY_MIN = int(os.getenv("REPLY_DELAY_MIN", "5"))
+REPLY_DELAY_MAX = int(os.getenv("REPLY_DELAY_MAX", "20"))
 
 NUM_AGENTS = 18
 
@@ -73,8 +71,9 @@ async def main():
         for rt in agent_runtimes:
             text = rt.agent.craft_post()
             tweet_id = rt.agent.post(text)
-            reply_text = rt.agent.craft_post()
-            rt.agent.reply(reply_text, tweet_id)
+            if tweet_id != -1:
+                await asyncio.sleep(random.uniform(REPLY_DELAY_MIN, REPLY_DELAY_MAX))
+                rt.agent.reply(tweet_id=tweet_id, original_text=text)
         return
 
     if args.once:

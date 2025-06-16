@@ -3,6 +3,7 @@ import logging
 import logging.config
 import os
 import argparse
+import yaml
 from dotenv import load_dotenv
 
 from agents.base import TwitterAgent
@@ -10,7 +11,8 @@ from agents.personalities import PERSONALITIES
 from scheduler.tasks import AgentRuntime, build_scheduler
 
 load_dotenv()
-logging.config.fileConfig("config/logging.yaml", disable_existing_loggers=False)
+with open("config/logging.yaml") as f:
+    logging.config.dictConfig(yaml.safe_load(f))
 
 log = logging.getLogger("runner")
 

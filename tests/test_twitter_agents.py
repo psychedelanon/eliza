@@ -189,7 +189,7 @@ def test_duplicate_guard(monkeypatch, caplog):
     assert first != -1
     assert second == -1
     events = [getattr(r, "event", None) for r in caplog.records]
-    post_count = events.count("post")
+    post_count = events.count("posted")
     dup_count = events.count("duplicate")
     if post_count != 1 or dup_count != 1:
         for r in caplog.records:

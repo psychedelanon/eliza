@@ -20,6 +20,16 @@ def test_demo_smoke(monkeypatch, tmp_path, caplog):
     env["TWEET_DEDUP_WINDOW"] = "1"
     env.pop("OPENAI_API_KEY", None)  # Unset OpenAI key to test fallback
 
+    # Stub quickfire to return deterministic text
+    stub_dir = tmp_path / "stubs" / "blacksmith_forge"
+    stub_dir.mkdir(parents=True)
+    (stub_dir / "__init__.py").write_text("")
+    (stub_dir / "quickfire.py").write_text(
+        "def create_post(p):\n    return 'demo'\n"
+        "def create_reply(p,o):\n    return 'demo'\n"
+    )
+    env["PYTHONPATH"] = f"{stub_dir.parent}:{env.get('PYTHONPATH','')}"
+
     # Patch asyncio.sleep to record delays
     sleep_calls = []
     def fake_sleep(secs):

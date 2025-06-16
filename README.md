@@ -146,6 +146,18 @@ INSTRUMENTATION_ENABLED=true
 POSTGRES_URL_INSTRUMENTATION="postgresql://postgres:postgres@localhost:5432/eliza_tracing"
 ```
 
+### Quickfire Hashtags
+
+You can override the default hashtags used by the `quickfire` helper by setting
+the `AQUA_HASHTAGS` environment variable:
+
+```bash
+export AQUA_HASHTAGS="#Foo,#Bar,#Baz"
+```
+
+If provided, these comma-separated tags will be chosen instead of the built in
+defaults.
+
 ---
 
 ### Automatically Start Eliza

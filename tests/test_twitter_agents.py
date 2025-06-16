@@ -1,6 +1,6 @@
 import os
+# ruff: noqa: E402
 import sys
-import asyncio
 import subprocess
 import pytest
 import types
@@ -35,6 +35,16 @@ sys.modules.setdefault(
             },
         ),
         TweepyException=Exception,
+    ),
+)
+sys.modules.setdefault(
+    "openai",
+    types.SimpleNamespace(
+        OpenAI=lambda api_key=None: types.SimpleNamespace(
+            moderations=types.SimpleNamespace(
+                create=lambda input: types.SimpleNamespace(results=[types.SimpleNamespace(flagged=False)])
+            )
+        )
     ),
 )
 sys.modules.setdefault(
@@ -240,4 +250,48 @@ def test_cli_demo_logging(tmp_path):
         env=env,
         cwd=tmp_path.parent,
     )
-    assert result.returncode == 0
+    out = result.stdout + result.stderr
+    assert '"event": "demo_post"' in out
+    assert '"event": "demo_reply"' in out
+
+
+def test_keyword_moderation_blocks_post(monkeypatch, caplog):
+    import agents.base as base
+    monkeypatch.setattr(base, "BANNED_WORDS", {"badword"})
+    agent = base.TwitterAgent(
+        idx=1,
+        name="ModAgent",
+        personality="demo",
+        api_key="k",
+        api_secret="s",
+        access_token="t",
+        access_secret="ts",
+    )
+    with caplog.at_level("WARNING"):
+        res = agent.post(("this contains badword", None))
+    assert res == -1
+    events = [getattr(r, "event", None) for r in caplog.records]
+    assert "moderation_blocked" in events
+
+
+def test_metrics_increment(monkeypatch):
+    from metrics import TWEETS_POSTED
+    TWEETS_POSTED._value.set(0)  # reset
+    agent = TwitterAgent(
+        idx=1,
+        name="MetricAgent",
+        personality="demo",
+        api_key="k",
+        api_secret="s",
+        access_token="t",
+        access_secret="ts",
+    )
+    class DummyResponse:
+        def __init__(self, id):
+            self.data = {"id": id}
+    class DummyClient:
+        def create_tweet(self, **_):
+            return DummyResponse(1)
+    agent.client = DummyClient()
+    agent.post(("hi", None))
+    assert TWEETS_POSTED._value.get() == 1.0

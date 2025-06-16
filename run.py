@@ -9,6 +9,7 @@ from dotenv import load_dotenv
 
 from agents.base import TwitterAgent
 from scheduler.tasks import AgentRuntime, build_scheduler
+from metrics import init_metrics
 
 load_dotenv()
 
@@ -75,6 +76,8 @@ async def main():
         help="skip API calls and operate without credentials",
     )
     args = parser.parse_args()
+
+    init_metrics(int(os.getenv("METRICS_PORT", "8000")))
 
     configs = load_agent_configs()
     if args.dry_run:

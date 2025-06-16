@@ -174,6 +174,11 @@ export AQUA_HASHTAGS="#Foo,#Bar,#Baz"
 If provided, these comma-separated tags will be chosen instead of the built in
 defaults.
 
+### Metrics
+
+Set `METRICS_PORT` to expose Prometheus metrics at `/metrics`. The default port
+is `8000`.
+
 ---
 
 ### Automatically Start Eliza

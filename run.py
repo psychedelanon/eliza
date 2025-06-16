@@ -8,7 +8,6 @@ import yaml
 from dotenv import load_dotenv
 
 from agents.base import TwitterAgent
-from agents.personalities import PERSONALITIES
 from scheduler.tasks import AgentRuntime, build_scheduler
 
 load_dotenv()
@@ -22,7 +21,7 @@ log.debug("Environment loaded")
 REPLY_DELAY_MIN = int(os.getenv("REPLY_DELAY_MIN", "5"))
 REPLY_DELAY_MAX = int(os.getenv("REPLY_DELAY_MAX", "20"))
 
-NUM_AGENTS = int(os.getenv("NUM_AGENTS", "18"))
+AGENT_CONFIG_PATH = os.getenv("AGENT_CONFIG", "configs/agents.yaml")
 
 
 def _has_creds(idx: int) -> bool:
@@ -31,20 +30,33 @@ def _has_creds(idx: int) -> bool:
     return all(os.getenv(prefix + k) for k in keys)
 
 
-def init_agents(dry_run: bool = False):
+def load_agent_configs(path: str = AGENT_CONFIG_PATH) -> dict:
+    if not os.path.exists(path):
+        log.warning("Agent config %s not found", path)
+        return {}
+    with open(path) as f:
+        return yaml.safe_load(f) or {}
+
+
+def init_agents(configs: dict, dry_run: bool = False):
     agents = []
-    for idx in range(1, NUM_AGENTS + 1):
+    for name, cfg in configs.items():
+        try:
+            idx = int(name.replace("Agent", ""))
+        except ValueError:
+            log.warning("Invalid agent name %s", name)
+            continue
         if not _has_creds(idx):
             if dry_run:
-                log.info("Agent%d using dry run (no creds)", idx)
+                log.info("%s using dry run (no creds)", name)
             else:
-                log.info("Agent%d skipped - no creds", idx)
+                log.info("%s skipped - no creds", name)
                 continue
         agents.append(
             TwitterAgent(
                 idx=idx,
-                name=f"Agent{idx}",
-                personality=PERSONALITIES[idx - 1],
+                name=name,
+                personality=cfg.get("persona", ""),
                 dry_run=dry_run,
             )
         )
@@ -66,18 +78,19 @@ async def main():
     )
     args = parser.parse_args()
 
+    configs = load_agent_configs()
     if args.dry_run:
         log.info("dry run mode", extra={"event": "dry_run"})
     agent_runtimes = [
-        AgentRuntime(a, dry_run=args.dry_run) for a in init_agents(dry_run=args.dry_run)
+        AgentRuntime(a, dry_run=args.dry_run) for a in init_agents(configs, dry_run=args.dry_run)
     ]
 
     if args.demo:
         for rt in agent_runtimes:
-            text = rt.agent.craft_post()
-            tweet_id = rt.agent.post(text, dry_run=args.dry_run)
+            text, img_path = rt.agent.craft_post()
+            tweet_id = rt.agent.post((text, img_path), dry_run=args.dry_run)
             log.info(
-                "demo post", 
+                "demo post",
                 extra={
                     "agent": rt.agent.name,
                     "event": "demo_post",

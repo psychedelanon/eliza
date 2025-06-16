@@ -94,6 +94,8 @@ Some features, including the scheduler and Python-based tests, require additiona
 ```bash
 pip install -r requirements.txt
 ```
+This includes the optional Quickfire generation library provided by the
+[blacksmith-forge](https://github.com/psychedelanon/blacksmith-forge) project.
 
 You can also run the `setup.sh` script, which installs both Node dependencies (including `turbo`) and these Python requirements:
 

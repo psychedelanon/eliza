@@ -15,6 +15,7 @@ class TwitterAgent:
     idx: int
     name: str
     personality: str
+    dry_run: bool = False
     api_key: Optional[str] = field(repr=False, default=None)
     api_secret: Optional[str] = field(repr=False, default=None)
     access_token: Optional[str] = field(repr=False, default=None)
@@ -23,7 +24,10 @@ class TwitterAgent:
 
     def __post_init__(self) -> None:
         self._load_creds_from_env()
-        self.authenticate()
+        if not self.dry_run:
+            self.authenticate()
+        else:
+            log.info("%s running in dry run mode", self.name)
 
     def _load_creds_from_env(self) -> None:
         if not self.api_key:
@@ -34,6 +38,9 @@ class TwitterAgent:
             self.access_secret = os.getenv(prefix + "ACCESS_SECRET")
 
     def authenticate(self) -> None:
+        if self.dry_run:
+            log.info("%s authenticate skipped (dry run)", self.name)
+            return
         auth = tweepy.OAuth1UserHandler(
             self.api_key,
             self.api_secret,
@@ -48,6 +55,9 @@ class TwitterAgent:
 
     @retry(wait=wait_random_exponential(multiplier=2, max=60), stop=stop_after_attempt(5), reraise=True)
     def post(self, text: str) -> int:
+        if self.dry_run:
+            log.info("%s post skipped (dry run): %s", self.name, text)
+            return -1
         status = self.client.update_status(status=text)
         tweet_id = status.id
         log.info("%s posted tweet %s", self.name, tweet_id)
@@ -55,6 +65,11 @@ class TwitterAgent:
 
     @retry(wait=wait_random_exponential(multiplier=2, max=60), stop=stop_after_attempt(5), reraise=True)
     def reply(self, text: str, tweet_id: int) -> int:
+        if self.dry_run:
+            log.info(
+                "%s reply skipped (dry run) to %s: %s", self.name, tweet_id, text
+            )
+            return -1
         status = self.client.update_status(
             status=text,
             in_reply_to_status_id=tweet_id,
@@ -65,6 +80,9 @@ class TwitterAgent:
         return reply_id
 
     async def check_mentions(self, since_id: Optional[int] = None) -> int:
+        if self.dry_run:
+            log.info("%s check_mentions skipped (dry run)", self.name)
+            return since_id or 1
         timeline = self.client.mentions_timeline(
             since_id=since_id, tweet_mode="extended", count=20
         )

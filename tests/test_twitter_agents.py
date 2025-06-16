@@ -90,3 +90,27 @@ def test_post_returns_int(monkeypatch, once_mode):
     agent.client = DummyClient()
     tweet_id = agent.post("hi")
     assert isinstance(tweet_id, int) and tweet_id > 0
+
+
+def test_dry_run_skips_post_and_reply(monkeypatch):
+    agent = TwitterAgent(
+        idx=2,
+        name="AgentDR",
+        personality="demo",
+        dry_run=True,
+    )
+
+    class DummyClient:
+        def __init__(self):
+            self.called = False
+
+        def update_status(self, **_kwargs):
+            self.called = True
+
+    agent.client = DummyClient()
+    post_id = agent.post("hi")
+    reply_id = agent.reply("reply", 123)
+
+    assert post_id == -1
+    assert reply_id == -1
+    assert agent.client.called is False

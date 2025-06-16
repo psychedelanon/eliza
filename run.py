@@ -25,17 +25,21 @@ def _has_creds(idx: int) -> bool:
     return all(os.getenv(prefix + k) for k in keys)
 
 
-def init_agents():
+def init_agents(dry_run: bool = False):
     agents = []
     for idx in range(1, NUM_AGENTS + 1):
         if not _has_creds(idx):
-            log.info("Agent%d skipped - no creds", idx)
-            continue
+            if dry_run:
+                log.info("Agent%d using dry run (no creds)", idx)
+            else:
+                log.info("Agent%d skipped - no creds", idx)
+                continue
         agents.append(
             TwitterAgent(
                 idx=idx,
                 name=f"Agent{idx}",
                 personality=PERSONALITIES[idx - 1],
+                dry_run=dry_run,
             )
         )
     return agents
@@ -49,9 +53,14 @@ async def main():
         action="store_true",
         help="post once and self-reply for each agent then exit",
     )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="skip API calls and operate without credentials",
+    )
     args = parser.parse_args()
 
-    agent_runtimes = [AgentRuntime(a) for a in init_agents()]
+    agent_runtimes = [AgentRuntime(a) for a in init_agents(dry_run=args.dry_run)]
 
     if args.demo:
         for rt in agent_runtimes:

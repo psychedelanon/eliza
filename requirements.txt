@@ -5,3 +5,4 @@ tenacity>=8.2,<9
 pyyaml>=6.0
 python-json-logger>=2.0
 rich>=13
+git+https://github.com/psychedelanon/blacksmith-forge.git@main#egg=blacksmith-forge

@@ -81,9 +81,15 @@ async def main():
             text = rt.agent.craft_post()
             tweet_id = rt.agent.post(text, dry_run=args.dry_run)
             if tweet_id != -1:
-                await asyncio.sleep(random.uniform(REPLY_DELAY_MIN, REPLY_DELAY_MAX))
+                await asyncio.sleep(
+                    random.uniform(REPLY_DELAY_MIN, REPLY_DELAY_MAX)
+                )
+                reply_text = rt.agent.craft_reply(text)
                 rt.agent.reply(
-                    tweet_id=tweet_id, original_text=text, dry_run=args.dry_run
+                    tweet_id=tweet_id,
+                    text=reply_text,
+                    original_text=text,
+                    dry_run=args.dry_run,
                 )
         return
 

@@ -139,6 +139,25 @@ class TwitterAgent:
 
     def craft_post(self):
         OPENAI_CALLS.inc()
+        # Check if agent has its own create_post implementation
+        if hasattr(self, 'create_post'):
+            result = self.create_post()
+            if isinstance(result, tuple) and len(result) == 3:
+                text, img_path, alt_text = result
+                if img_path:
+                    self.last_media_path = str(img_path)
+                    log.info(
+                        "media generated",
+                        extra={
+                            "agent": self.name,
+                            "event": "media_ready",
+                            "path": self.last_media_path,
+                        },
+                    )
+                return text, img_path
+            return result, None
+        
+        # Fall back to quickfire implementation
         text = quickfire.create_post(self.personality)
         if os.getenv("MEDIA_ENABLE", "false").lower() == "true":
             img_path = quickfire.generate_image(self.personality, text)

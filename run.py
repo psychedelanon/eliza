@@ -14,6 +14,7 @@ from pathlib import Path
 from datetime import time as dtime, timezone
 
 from agents.base import TwitterAgent
+from agents.agent2 import Agent2
 from scheduler.tasks import AgentRuntime, build_scheduler
 from metrics import init_metrics
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -98,8 +99,11 @@ def init_agents(configs: dict, dry_run: bool = False):
             else:
                 log.info("%s skipped - no creds", name)
                 continue
+        
+        # Use Agent2 class for agent2, otherwise use base TwitterAgent
+        agent_class = Agent2 if name == "Agent2" else TwitterAgent
         agents.append(
-            TwitterAgent(
+            agent_class(
                 idx=idx,
                 name=name,
                 personality=cfg.get("persona", ""),

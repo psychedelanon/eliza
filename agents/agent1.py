@@ -1,59 +1,69 @@
 """Agent 1 – Sproto ramblings."""
 from __future__ import annotations
 
-import datetime as dt
-import pathlib
 import random
-import textwrap
+import re
 from typing import Tuple
 
-from .base import TwitterAgent
+from agents.base import TwitterAgent
 from eliza.llm import complete
 
 log = __import__("logging").getLogger(__name__)
 
-THIS_DIR = pathlib.Path(__file__).parent
-DIALOGUE_YAML = THIS_DIR / "sproto_corpus.yaml"
+SYSTEM_PROMPT = """
+You are **Sproto** – a crypto foodie who loves breakfast and $BITCOIN.
+Voice & style:
+• Calm, food-focused musings about crypto
+• Share what you're having for breakfast, always with a $BITCOIN twist
+• Use gentle food metaphors and cooking terms
+• Keep it clean and wholesome
+Hard constraints (MUST):
+1. ≤ 240 Unicode characters total
+2. Always mention $BITCOIN
+3. Always mention what you're having for breakfast
+4. Use one cooking term (e.g. simmer, sauté, whisk, fold)
+5. Use one spice or herb (e.g. cinnamon, basil, thyme)
+6. End with #HarryPotterObamaSonic10Inu
+"""
 
-with DIALOGUE_YAML.open("r", encoding="utf-8") as fh:
-    CORPUS: list[str] = __import__("yaml").safe_load(fh)
+FEWSHOT_ASSISTANT = [
+    "Just whisking up some cinnamon pancakes while $BITCOIN simmers on low heat. Perfect morning vibes. #HarryPotterObamaSonic10Inu",
+    "Folding fresh basil into my omelette as $BITCOIN gently rises. Breakfast of champions. #HarryPotterObamaSonic10Inu",
+    "Sautéing mushrooms with thyme, watching $BITCOIN do its thing. Morning ritual. #HarryPotterObamaSonic10Inu"
+]
 
-_SPICE_WORDS = ["onions", "macro", "laser", "fren", "pump"]
-_HASHTAGS = ["#BTC", "#ETH", "#Macro"]
-_OPTIONAL_TAG = "#HarryPotterObamaSonic10Inu"
+USER_PROMPT = """
+Morning briefing:
+Generate ONE tweet about your breakfast, always mentioning $BITCOIN.
+Do NOT output anything except the tweet text itself.
+"""
 
-
-def _build_prompt(spice: str) -> str:
-    """Construct the prompt for Sproto LLM completion."""
-
-    shots = random.sample(CORPUS, k=5)
-    shots_txt = "\n".join(f"- {s}" for s in shots)
-    today = dt.datetime.now(dt.timezone.utc).strftime("%b %d %Y")
-    return textwrap.dedent(
-        f"""
-        You are Sproto, a chaotic but witty crypto commentator on X.
-        Today is {today}. One tweet only:
-        • 1-240 characters using crypto slang.
-        • Include the word '{spice}'.
-        • Must contain #SPROTO and may add one of {_HASHTAGS}.
-        • Keep it clean.
-
-        Style examples:
-        {shots_txt}
-
-        Tweet:
-        """
-    ).strip()
+BONUS_TAG = "#HarryPotterObamaSonic10Inu"
+TICKER = "$BITCOIN"
 
 
 def _generate_tweet() -> str:
-    spice = random.choice(_SPICE_WORDS)
-    prompt = _build_prompt(spice)
-    tweet = complete(prompt, temperature=1.05, model="gpt-4o-mini", max_tokens=80)
-    if random.random() < 0.1 and _OPTIONAL_TAG not in tweet:
-        tweet = f"{tweet.strip()} {_OPTIONAL_TAG}"
-    if "#SPROTO" not in tweet.upper():
-        tweet = f"{tweet.strip()} #SPROTO"
+    """Generate a tweet using the LLM."""
+    prompt = f"{SYSTEM_PROMPT}\n\n{FEWSHOT_ASSISTANT}\n\nUser: Generate a tweet."
+    raw = complete(prompt, temperature=1.05, max_tokens=180)
+    tweet = raw.strip()[:240]
+
+    # Ensure $BITCOIN is mentioned
+    if TICKER not in tweet:
+        words = tweet.split()
+        if len(words) < 2:
+            tweet = f"{TICKER} {tweet}"
+        else:
+            idx = random.randint(1, len(words)-1)
+            words.insert(idx, TICKER)
+            tweet = " ".join(words)
+        tweet = tweet.strip()[:240]
+
+    # Always end with the bonus tag
+    tweet = re.sub(re.escape(BONUS_TAG), "", tweet, flags=re.IGNORECASE)
+    tweet = tweet.strip()
+    tweet = f"{tweet} {BONUS_TAG}".strip()
+
     return tweet[:240]
 
 
@@ -61,14 +71,12 @@ def _generate_tweet() -> str:
 
 def create_post(persona: str = "Sproto") -> Tuple[str, None]:
     """Return ``(text, None)`` for posting."""
-
     text = _generate_tweet()
     return text, None
 
 
 def run_once(*, dry_run: bool = False) -> None:
     """Generate and post one Sproto tweet."""
-
     agent = TwitterAgent(idx=1, name="Agent1", personality="Sproto", dry_run=dry_run)
     text, img = create_post()
     post_id = agent.post((text, img), dry_run=dry_run)

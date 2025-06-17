@@ -7,11 +7,13 @@ import random
 import yaml
 from dotenv import load_dotenv
 import importlib.resources
+import importlib.util
+import sys
+import json
 from pathlib import Path
 from datetime import time as dtime, timezone
 
 from agents.base import TwitterAgent
-from agents.agent2 import CryptoCompareAgent
 from scheduler.tasks import AgentRuntime, build_scheduler
 from metrics import init_metrics
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -29,6 +31,13 @@ class SafeJsonFormatter(logging.Formatter):
 load_dotenv()
 
 ROOT = Path(__file__).resolve().parent
+vendor_qf = ROOT / "vendor" / "blacksmith_forge" / "quickfire.py"
+if vendor_qf.exists():
+    spec = importlib.util.spec_from_file_location("blacksmith_forge.quickfire", vendor_qf)
+    module = importlib.util.module_from_spec(spec)
+    assert spec.loader
+    spec.loader.exec_module(module)
+    sys.modules["blacksmith_forge.quickfire"] = module
 with open(ROOT / "config" / "logging.yaml") as f:
     config = yaml.safe_load(f)
     # Replace the default formatter with our safe one
@@ -89,25 +98,14 @@ def init_agents(configs: dict, dry_run: bool = False):
             else:
                 log.info("%s skipped - no creds", name)
                 continue
-        # Use CryptoCompareAgent for Agent2 only
-        if name == "Agent2":
-            agents.append(
-                CryptoCompareAgent(
-                    idx=idx,
-                    name=name,
-                    personality=cfg.get("persona", ""),
-                    dry_run=dry_run,
-                )
+        agents.append(
+            TwitterAgent(
+                idx=idx,
+                name=name,
+                personality=cfg.get("persona", ""),
+                dry_run=dry_run,
             )
-        else:
-            agents.append(
-                TwitterAgent(
-                    idx=idx,
-                    name=name,
-                    personality=cfg.get("persona", ""),
-                    dry_run=dry_run,
-                )
-            )
+        )
     return agents
 
 
@@ -129,7 +127,7 @@ async def job_crypto_post():
 
 async def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--once", action="store_true", help="run one cycle and exit")
+    parser.add_argument("--once", action="store_true", help="run scheduled jobs once then exit")
     parser.add_argument(
         "--demo",
         action="store_true",
@@ -142,7 +140,7 @@ async def main():
     )
     parser.add_argument(
         "--agent",
-        help="run only the specified agent (e.g. Agent2)",
+        help="comma-separated agent names to run",
     )
     args = parser.parse_args()
 
@@ -152,6 +150,11 @@ async def main():
     configs = load_agent_configs()
     if args.dry_run:
         log.info("dry run mode", extra={"event": "dry_run"})
+
+    agent_filter = None
+    if args.agent:
+        agent_filter = {name.strip() for name in args.agent.split(',') if name.strip()}
+
     agent_runtimes = [
         AgentRuntime(
             a,
@@ -159,10 +162,10 @@ async def main():
             daily_job=a.name == "Agent2",
         )
         for a in init_agents(configs, dry_run=args.dry_run)
-        if not args.agent or a.name == args.agent  # Filter by agent name if specified
+        if not agent_filter or a.name in agent_filter
     ]
 
-    if args.demo or args.agent == "Agent2":  # Run demo for Agent2 even without --demo flag
+    if args.demo or args.agent and "Agent2" in (agent_filter or {}):
         for rt in agent_runtimes:
             text, img_path = rt.agent.craft_post()
             tweet_id = rt.agent.post((text, img_path), dry_run=args.dry_run)
@@ -175,12 +178,23 @@ async def main():
                     "text": text,
                 },
             )
+            print(json.dumps({"event": "demo_post", "agent": rt.agent.name}))
             if tweet_id != -1 and not args.agent:  # Only do replies if not testing specific agent
                 await asyncio.sleep(random.uniform(REPLY_DELAY_MIN, REPLY_DELAY_MAX))
                 reply_text = rt.agent.craft_reply(text)
                 reply_id = rt.agent.reply(
                     tweet_id=tweet_id, text=reply_text, dry_run=args.dry_run
                 )
+                log.info(
+                    "demo reply",
+                    extra={"agent": rt.agent.name, "event": "demo_reply", "post_id": reply_id},
+                )
+                print(json.dumps({"event": "demo_reply", "agent": rt.agent.name}))
+        return
+
+    if args.once:
+        for rt in agent_runtimes:
+            await rt.periodic_post()
         return
 
     # Set up daily crypto post scheduler

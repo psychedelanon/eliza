@@ -8,9 +8,13 @@ from dataclasses import dataclass, field
 from typing import Optional
 import time
 
-import quickfire
+import sys
+sys.path.append(str(Path(__file__).parent.parent / "vendor"))
+sys.path.append(str(Path(__file__).parent.parent))  # Add project root for metrics.py
+import blacksmith_forge.quickfire as quickfire
 import openai
-import blacksmith_forge.quickfire as qf
+# import quickfire  # removed old import
+# import blacksmith_forge.quickfire as qf  # keep as is if used elsewhere
 
 from metrics import TWEETS_POSTED, REPLIES_POSTED, OPENAI_CALLS
 
@@ -135,9 +139,9 @@ class TwitterAgent:
 
     def craft_post(self):
         OPENAI_CALLS.inc()
-        text = qf.create_post(self.personality)
+        text = quickfire.create_post(self.personality)
         if os.getenv("MEDIA_ENABLE", "false").lower() == "true":
-            img_path = qf.generate_image(self.personality, text)
+            img_path = quickfire.generate_image(self.personality, text)
             self.last_media_path = str(img_path)
             log.info(
                 "media generated",
@@ -152,7 +156,7 @@ class TwitterAgent:
         return text, None
 
     def craft_reply(self, original_text: str) -> str:
-        return qf.create_reply(self.personality, original_text)
+        return quickfire.create_reply(self.personality, original_text)
 
     @retry(
         wait=wait_random_exponential(multiplier=2, max=60),

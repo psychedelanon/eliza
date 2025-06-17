@@ -1,21 +1,38 @@
-class SimpleCounter:
-    def __init__(self):
+"""Prometheus metrics helpers."""
+from __future__ import annotations
+
+import time
+from typing import Optional
+
+from prometheus_client import Counter, Histogram, start_http_server
+
+
+class CounterWrapper:
+    """Wrapper exposing ``inc``, ``set`` and ``get`` for testing."""
+
+    def __init__(self, name: str, description: str) -> None:
+        self._counter = Counter(name, description)
         self._value = 0
 
-    def inc(self):
-        self._value += 1
+    def inc(self, amount: int = 1) -> None:
+        self._counter.inc(amount)
+        self._value += amount
 
-    def get(self):
-        return self._value
-
-    def set(self, value):
+    def set(self, value: int) -> None:
+        if value > self._value:
+            self._counter.inc(value - self._value)
         self._value = value
 
-# Simple metrics for testing
-TWEETS_POSTED = SimpleCounter()
-REPLIES_POSTED = SimpleCounter()
-OPENAI_CALLS = SimpleCounter()
+    def get(self) -> int:
+        return self._value
 
-def init_metrics(port=8000):
-    """No-op for testing"""
-    pass
+
+TWEETS_POSTED = CounterWrapper("tweets_posted_total", "Tweets successfully posted")
+REPLIES_POSTED = CounterWrapper("replies_posted_total", "Replies successfully posted")
+OPENAI_CALLS = CounterWrapper("openai_calls_total", "OpenAI API calls made")
+LLM_LATENCY = Histogram("llm_request_seconds", "LLM request latency in seconds")
+
+
+def init_metrics(port: int = 8000) -> None:
+    """Start Prometheus metrics server on given port."""
+    start_http_server(port)

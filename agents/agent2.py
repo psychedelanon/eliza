@@ -3,8 +3,8 @@ from datetime import datetime, timezone
 from sys import path as sys_path
 from pathlib import Path
 
-# Ensure the parent directory is in sys.path for import
-sys_path.append(str(Path(__file__).parent.parent / "vendor"))
+# Ensure the vendor directory is preferred for imports
+sys_path.insert(0, str(Path(__file__).parent.parent / "vendor"))
 from blacksmith_forge.quickfire import _fetch_prices, _render_tile, _shorten_btc_price
 
 # Color constants

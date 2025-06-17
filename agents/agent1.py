@@ -1,69 +1,42 @@
-"""
-Agent 1 – Sproto ramblings
-Usage:
-    python agents/agent1.py --once --dry-run
-    # scheduler will call run_once() daily
-"""
+"""Agent 1 – Sproto ramblings."""
 from __future__ import annotations
-import random, pathlib, datetime as dt
-import yaml, textwrap
-import sys
-from pathlib import Path
 
-# Patch sys.path so we can import TwitterAgent from base.py
-sys.path.append(str(Path(__file__).parent))
-sys.path.append(str(Path(__file__).parent.parent))
-from base import TwitterAgent  # Use TwitterAgent as the base class
-# from utils.moderation import safe_completion  # removed, now local
+import datetime as dt
+import pathlib
+import random
+import textwrap
+from typing import Tuple
+
+from .base import TwitterAgent
+from eliza.llm import complete
+
 log = __import__("logging").getLogger(__name__)
 
 THIS_DIR = pathlib.Path(__file__).parent
 DIALOGUE_YAML = THIS_DIR / "sproto_corpus.yaml"
 
-# --- Local OpenAI completion wrapper ---
-def safe_completion(prompt, max_tokens=120, temperature=0.85):
-    import logging, os
-    log = logging.getLogger("agent1")
-    try:
-        import openai
-    except ImportError:
-        log.warning("openai package not installed; using stub response")
-        return "[stub] OpenAI unavailable"
-    api_key = os.getenv("OPENAI_API_KEY")
-    if not api_key:
-        log.warning("OPENAI_API_KEY not set; using stub response")
-        return "[stub] OpenAI unavailable"
-    client = openai.OpenAI(api_key=api_key)
-    try:
-        resp = client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[{"role": "user", "content": prompt}],
-            max_tokens=max_tokens,
-            temperature=temperature,
-        )
-        return resp.choices[0].message.content.strip()
-    except Exception as exc:
-        log.warning("openai completion failed: %s", exc)
-        return "[stub] OpenAI error"
-
-# ------------- Load dialogue snippets -------------
 with DIALOGUE_YAML.open("r", encoding="utf-8") as fh:
-    CORPUS: list[str] = yaml.safe_load(fh)
+    CORPUS: list[str] = __import__("yaml").safe_load(fh)
 
-def _build_prompt() -> str:
-    """Construct few‑shot prompt for OpenAI completion."""
+_SPICE_WORDS = ["onions", "macro", "laser", "fren", "pump"]
+_HASHTAGS = ["#BTC", "#ETH", "#Macro"]
+_OPTIONAL_TAG = "#HarryPotterObamaSonic10Inu"
+
+
+def _build_prompt(spice: str) -> str:
+    """Construct the prompt for Sproto LLM completion."""
+
     shots = random.sample(CORPUS, k=5)
     shots_txt = "\n".join(f"- {s}" for s in shots)
     today = dt.datetime.now(dt.timezone.utc).strftime("%b %d %Y")
     return textwrap.dedent(
         f"""
         You are Sproto, a chaotic but witty crypto commentator on X.
-        Today is {today}. Generate one tweet:
-        • Short, punchy, playful.
-        • At most 240 characters.
-        • Must include #SPROTO.
-        • Optional extra hashtag from {{#BTC,#ETH,#Macro,#HarryPotterObamaSonic10Inu}}.
-        • No profanity, slurs or disallowed content.
+        Today is {today}. One tweet only:
+        • 1-240 characters using crypto slang.
+        • Include the word '{spice}'.
+        • Must contain #SPROTO and may add one of {_HASHTAGS}.
+        • Keep it clean.
 
         Style examples:
         {shots_txt}
@@ -72,27 +45,31 @@ def _build_prompt() -> str:
         """
     ).strip()
 
-def _generate_tweet() -> str:
-    prompt = _build_prompt()
-    tweet = safe_completion(prompt, max_tokens=120, temperature=0.85).strip()
-    # Guard‑rails: ensure hashtag + length
-    if "#SPROTO" not in tweet:
-        tweet += " #SPROTO"
-    return tweet[:280]
 
-# ------------- Public API --------------------------
-def create_post(persona="Sproto") -> tuple[str, None]:
-    """Returns (text, img_path) — image path is None for this agent."""
+def _generate_tweet() -> str:
+    spice = random.choice(_SPICE_WORDS)
+    prompt = _build_prompt(spice)
+    tweet = complete(prompt, temperature=1.05, model="gpt-4o-mini", max_tokens=80)
+    if random.random() < 0.1 and _OPTIONAL_TAG not in tweet:
+        tweet = f"{tweet.strip()} {_OPTIONAL_TAG}"
+    if "#SPROTO" not in tweet.upper():
+        tweet = f"{tweet.strip()} #SPROTO"
+    return tweet[:240]
+
+
+# Public API --------------------------------------------------------------------
+
+def create_post(persona: str = "Sproto") -> Tuple[str, None]:
+    """Return ``(text, None)`` for posting."""
+
     text = _generate_tweet()
     return text, None
 
+
 def run_once(*, dry_run: bool = False) -> None:
-    agent = TwitterAgent(
-        idx=1,
-        name="Agent1",
-        personality="Sproto",
-        dry_run=dry_run,
-    )
+    """Generate and post one Sproto tweet."""
+
+    agent = TwitterAgent(idx=1, name="Agent1", personality="Sproto", dry_run=dry_run)
     text, img = create_post()
     post_id = agent.post((text, img), dry_run=dry_run)
     if dry_run:
@@ -102,6 +79,7 @@ def run_once(*, dry_run: bool = False) -> None:
         extra={"agent": "Agent1", "event": "posted", "post_id": post_id, "text": text},
     )
 
+
 if __name__ == "__main__":
     import argparse
 
@@ -109,6 +87,5 @@ if __name__ == "__main__":
     ap.add_argument("--once", action="store_true")
     ap.add_argument("--dry-run", action="store_true")
     args = ap.parse_args()
-
     if args.once:
-        run_once(dry_run=args.dry_run) 
+        run_once(dry_run=args.dry_run)

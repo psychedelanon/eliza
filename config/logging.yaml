@@ -1,16 +1,13 @@
 version: 1
+disable_existing_loggers: False
 formatters:
-  json:
-    '()': pythonjsonlogger.jsonlogger.JsonFormatter
-    format: '%(asctime)s %(levelname)s %(agent)s %(event)s %(message)s'
-    rename_fields:
-      asctime: timestamp
-      levelname: level
-      message: msg
+  simple:
+    format: '{"timestamp": "%(asctime)s", "level": "%(levelname)s", "agent": "%(agent)s", "event": "%(event)s", "msg": "%(message)s"}'
 handlers:
   console:
     class: logging.StreamHandler
-    formatter: json
+    formatter: simple
+    stream: ext://sys.stdout
 root:
-  level: INFO
+  level: DEBUG
   handlers: [console]

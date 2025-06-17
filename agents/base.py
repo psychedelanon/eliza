@@ -163,34 +163,21 @@ class TwitterAgent:
         text, img_path = post
         if dry_run is None:
             dry_run = self.dry_run
-        reason = None
         if not _passes_moderation(text):
             reason = "moderation"
+            log.debug("%s skip=%s text=%r", self.name, reason, text, extra={"agent": self.name, "event": "skip", "reason": reason})
             log.warning(
                 "%s blocked by moderation",
                 self.name,
                 extra={"agent": self.name, "event": "moderation_blocked"},
             )
-            log.debug(
-                "%s skip reason=%s text=%r",
-                self.name,
-                reason,
-                text,
-                extra={"agent": self.name, "event": "skip", "reason": reason},
-            )
             return -1
         if _is_duplicate(text):
             reason = "duplicate"
+            log.debug("%s skip=%s text=%r", self.name, reason, text, extra={"agent": self.name, "event": "skip", "reason": reason})
             log.info(
                 "duplicate avoided",
                 extra={"agent": self.name, "event": "duplicate"},
-            )
-            log.debug(
-                "%s skip reason=%s text=%r",
-                self.name,
-                reason,
-                text,
-                extra={"agent": self.name, "event": "skip", "reason": reason},
             )
             return -1
         if dry_run:
@@ -202,8 +189,9 @@ class TwitterAgent:
             )
             _record_tweet(text)
             return int(time.time() * 1000)
-        if img_path is not None:
-            media_id = self.client.upload_media(img_path)
+        if img_path and Path(img_path).exists() and not dry_run:
+            media = self.api_v1.media_upload(img_path)
+            media_id = media.media_id
             resp = self.client.create_tweet(text=text, media_ids=[media_id])
             log.info(
                 "%s uploaded media %s",
@@ -276,13 +264,22 @@ class TwitterAgent:
                 extra={"agent": self.name, "event": "mentions_skip"},
             )
             return since_id or 1
-        timeline = self.api_v1.mentions_timeline(
-            since_id=since_id, tweet_mode="extended", count=20
-        )
+        try:
+            user_id = self.client.get_me().data.id
+            resp = self.client.get_users_mentions(user_id, since_id=since_id, max_results=20)
+        except Exception as exc:
+            log.warning(
+                "%s mentions_unavailable: %s",
+                self.name,
+                exc,
+                extra={"agent": self.name, "event": "mentions_unavailable"},
+            )
+            return since_id or 1
+        timeline = resp.data or []
         new_since = since_id or 1
         for status in reversed(timeline):
             new_since = max(status.id, new_since)
-            text = f"@{status.user.screen_name} {self.name} replies in a {self.personality} style."
+            text = f"@{getattr(status, 'author_id', 'user')} {self.name} replies in a {self.personality} style."
             try:
                 self.client.create_tweet(
                     text=text,
@@ -294,7 +291,7 @@ class TwitterAgent:
                     status.id,
                     extra={"agent": self.name, "event": "reply"},
                 )
-            except tweepy.TweepyException as exc:
+            except Exception as exc:
                 log.warning(
                     "%s reply failed: %s",
                     self.name,

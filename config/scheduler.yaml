@@ -1,0 +1,11 @@
+jobs:
+  - id: btc_hpo_daily
+    func: agents.agent2:run_once
+    trigger: cron
+    hour: 21
+    minute: 35
+  - id: sproto_morning
+    func: agents.agent1:run_once
+    trigger: cron
+    hour: 13
+    minute: 0

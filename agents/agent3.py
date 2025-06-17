@@ -2,16 +2,16 @@ import argparse
 import json
 import logging
 import time
-from typing import List, Dict, Optional
+from typing import Dict, List, Optional
 
 import requests
 
-from eliza import llm
 from agents.base import TwitterAgent
+from eliza import llm
 
 log = logging.getLogger("alpha_scry")
 
-AGENT_NAME = "Agent3"
+AGENT_NAME = "AlphaScry"
 CHAIN_TAGS = {
     "ethereum": "ETH",
     "bsc": "BSC",
@@ -26,59 +26,52 @@ CHAIN_TAGS = {
     "pulse": "Pulse",
 }
 
+BASE_TOKENS = {
+    "ethereum": [
+        "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",  # WETH
+        "0xA0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",  # USDC
+    ],
+    "bsc": [
+        "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c",  # WBNB
+        "0xe9e7cea3dedca5984780bafc599bd69add087d56",  # BUSD
+    ],
+}
 
-ETH_BASES = [
-    "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",  # WETH
-    "0xA0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",  # USDC
-]
-BSC_BASES = [
-    "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c",  # WBNB
-    "0xe9e7cea3dedca5984780bafc599bd69add087d56",  # BUSD
-]
+def fetch_hot_tokens() -> List[Dict[str, Optional[str]]]:
+    """Return hot tokens across chains using DexScreener."""
 
-
-def fetch_hot_tokens() -> List[Dict]:
-    """Return a sorted list of hot token metadata."""
-    hot_tokens: List[Dict] = []
-    for bases, chain in [(ETH_BASES, "ethereum"), (BSC_BASES, "bsc")]:
+    tokens: List[Dict[str, Optional[str]]] = []
+    for chain, bases in BASE_TOKENS.items():
         url = f"https://api.dexscreener.com/latest/dex/tokens/{','.join(bases)}"
         try:
             resp = requests.get(url, timeout=10)
             if resp.status_code != 200:
-                log.error(
-                    json.dumps(
-                        {
-                            "event": "error_fetch",
-                            "agent": AGENT_NAME,
-                            "text": f"HTTP {resp.status_code} fetching {chain}",
-                        }
-                    )
-                )
+                log.error(json.dumps({
+                    "event": "fetch_fail",
+                    "agent": AGENT_NAME,
+                    "text": f"{chain} HTTP {resp.status_code}",
+                }))
                 continue
             data = resp.json()
-        except Exception as exc:  # pragma: no cover - network failure
-            log.error(
-                json.dumps(
-                    {
-                        "event": "error_fetch",
-                        "agent": AGENT_NAME,
-                        "text": str(exc),
-                    }
-                )
-            )
+        except Exception as exc:  # pragma: no cover - network
+            log.error(json.dumps({
+                "event": "fetch_fail",
+                "agent": AGENT_NAME,
+                "text": f"{chain} exception {exc}",
+            }))
             continue
         for pair in data.get("pairs", []):
             base_addr = pair.get("baseToken", {}).get("address", "").lower()
             quote_addr = pair.get("quoteToken", {}).get("address", "").lower()
             token = {}
-            if base_addr in [a.lower() for a in (ETH_BASES + BSC_BASES)]:
+            if base_addr in [a.lower() for a in bases]:
                 t = pair.get("quoteToken", {})
-            elif quote_addr in [a.lower() for a in (ETH_BASES + BSC_BASES)]:
+            elif quote_addr in [a.lower() for a in bases]:
                 t = pair.get("baseToken", {})
             else:
                 continue
             token["address"] = t.get("address")
-            if not token["address"] or token["address"].lower() in [a.lower() for a in (ETH_BASES + BSC_BASES)]:
+            if not token["address"] or token["address"].lower() in [a.lower() for a in bases]:
                 continue
             token["name"] = t.get("name") or t.get("symbol") or "Unknown"
             token["symbol"] = t.get("symbol") or t.get("name") or "UNKNOWN"
@@ -95,9 +88,9 @@ def fetch_hot_tokens() -> List[Dict]:
             token["holders"] = None
             token["age"] = None
             token["chart"] = pair.get("url", f"https://dexscreener.com/{chain}/{token['address']}")
-            hot_tokens.append(token)
+            tokens.append(token)
     unique = {}
-    for t in hot_tokens:
+    for t in tokens:
         key = (t["chain"], t["address"].lower())
         if key not in unique or (t.get("volume") or 0) > (unique[key].get("volume") or 0):
             unique[key] = t

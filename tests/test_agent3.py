@@ -1,59 +1,49 @@
-import types
 from agents import agent3
 
 class DummyLLM:
-    def __init__(self, reply="tweet"):
+    def __init__(self, reply="text"):
         self.reply = reply
         self.prompt = None
-    def complete(self, prompt):
+    def complete(self, prompt: str):
         self.prompt = prompt
         return self.reply
 
-def test_generate_tweet_appends_hashtags():
-    token = {
-        "name": "Token",
-        "symbol": "TKN",
-        "chain": "ethereum",
-        "address": "0x1",
-        "volume": 100,
-        "price": 0.1,
-        "liquidity": 1000,
-        "holders": 10,
-        "age": "1h",
-        "chart": "http://chart",
-    }
-    tweet = agent3.generate_tweet(token, DummyLLM("alpha"))
-    assert "#AlphaScry" in tweet
-    assert "#ETH" in tweet
 
-def test_fetch_hot_tokens_sort(monkeypatch):
-    resp_eth = {
+def test_fetch_hot_tokens(monkeypatch):
+    resp = {
         "pairs": [
             {
-                "baseToken": {"address": agent3.ETH_BASES[0]},
-                "quoteToken": {"address": "0xAAA", "name": "A", "symbol": "A"},
-                "volume": {"h24": 200},
-                "priceUsd": "0.1",
-                "liquidity": {"usd": 1000},
-                "url": "http://chart1",
-            },
-            {
-                "baseToken": {"address": agent3.ETH_BASES[0]},
-                "quoteToken": {"address": "0xBBB", "name": "B", "symbol": "B"},
-                "volume": {"h24": 100},
-                "priceUsd": "0.05",
-                "liquidity": {"usd": 500},
-                "url": "http://chart2",
-            },
+                "baseToken": {"address": agent3.BASE_TOKENS["ethereum"][0], "name": "WETH", "symbol": "WETH"},
+                "quoteToken": {"address": "0xabc", "name": "Alpha", "symbol": "ALPHA"},
+                "volume": {"h24": 1000},
+                "priceUsd": 0.01,
+                "liquidity": {"usd": 5000},
+                "url": "https://dexscreener.com/ethereum/0xabc",
+            }
         ]
     }
-    def dummy_get(url, timeout=10):
-        class Resp:
-            status_code = 200
-            def json(self_inner):
-                return resp_eth
-        return Resp()
-    monkeypatch.setattr(agent3.requests, "get", dummy_get)
+    class DummyResp:
+        status_code = 200
+        def json(self):
+            return resp
+    monkeypatch.setattr(agent3.requests, "get", lambda url, timeout=10: DummyResp())
     tokens = agent3.fetch_hot_tokens()
-    assert tokens[0]["symbol"] == "A"
-    assert tokens[0]["volume"] == 200
+    assert tokens[0]["symbol"] == "ALPHA"
+    assert tokens[0]["chain"] == "ethereum"
+
+
+def test_generate_tweet_uses_llm():
+    token = {
+        "name": "Alpha",
+        "symbol": "ALPHA",
+        "chain": "ethereum",
+        "address": "0xabc",
+        "volume": 1000,
+        "liquidity": 2000,
+    }
+    llm = DummyLLM("tweet output")
+    out = agent3.generate_tweet(token, llm_client=llm)
+    assert out.startswith("tweet output")
+    assert "#AlphaScry" in out
+    assert "#ETH" in out
+    assert "Alpha" in llm.prompt

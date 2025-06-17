@@ -9,3 +9,7 @@ jobs:
     trigger: cron
     hour: 13
     minute: 0
+  - id: alpha_scry
+    func: agents.agent3:run_once
+    trigger: cron
+    minute: "*/10"

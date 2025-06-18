@@ -5,7 +5,6 @@ import random
 from typing import List, Optional
 
 from agents.base import TwitterAgent
-from eliza import llm
 try:
     from metrics import AMPLIFICATIONS_TOTAL
 except ImportError:

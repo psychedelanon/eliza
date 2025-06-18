@@ -3,10 +3,12 @@ import logging
 import sqlite3
 import hashlib
 from pathlib import Path
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from dataclasses import dataclass, field
-from typing import Optional, Union, Tuple
+from typing import Optional
 import time
+import asyncio
+from croniter import croniter
 
 import sys
 sys.path.append(str(Path(__file__).parent.parent / "vendor"))
@@ -16,10 +18,10 @@ import openai
 # import quickfire  # removed old import
 # import blacksmith_forge.quickfire as qf  # keep as is if used elsewhere
 
-from metrics import TWEETS_POSTED, REPLIES_POSTED, OPENAI_CALLS
+from metrics import OPENAI_CALLS, CROSS_ENGAGE_TOTAL, CROSS_ENGAGE_LATENCY_SECONDS
 
 import tweepy
-from tenacity import retry, wait_random_exponential, stop_after_attempt, wait_exponential, retry_if_exception_type
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 import requests
 
 log = logging.getLogger("agent")
@@ -36,7 +38,7 @@ _db = sqlite3.connect(DB_PATH)
 _db.execute(
     "CREATE TABLE IF NOT EXISTS tweets(id INTEGER PRIMARY KEY, text TEXT UNIQUE, ts TIMESTAMP DEFAULT CURRENT_TIMESTAMP)"
 )
-cutoff = datetime.utcnow() - timedelta(days=TWEET_DEDUP_WINDOW)
+cutoff = datetime.now(timezone.utc) - timedelta(days=TWEET_DEDUP_WINDOW)
 _db.execute("DELETE FROM tweets WHERE ts < ?", (cutoff.isoformat(),))
 _db.commit()
 
@@ -98,6 +100,7 @@ class TwitterAgent:
     access_secret: Optional[str] = field(repr=False, default=None)
     client: Optional[tweepy.API] = field(init=False, default=None)
     last_media_path: Optional[str] = field(init=False, default=None)
+    last_post_id: Optional[int] = field(init=False, default=None)
 
     def __post_init__(self) -> None:
         self._load_creds_from_env()
@@ -239,19 +242,12 @@ class TwitterAgent:
             )
             raise
 
-    @retry(
-        stop=stop_after_attempt(3),
-        wait=wait_exponential(multiplier=1, min=4, max=10),
-        retry=retry_if_exception_type((tweepy.TweepyException, requests.RequestException)),
-        reraise=True,
-    )
     async def post(self, text: str, img: Optional[str] = None) -> bool:
-        """Post a tweet with optional image."""
+        """Post a tweet with optional image and schedule cross-engagement."""
         if not _passes_moderation(text):
             reason = "moderation"
             log.warning(f"Post rejected: {reason}")
             return False
-            
         if not self.dry_run:
             try:
                 if img and Path(img).exists():
@@ -260,7 +256,6 @@ class TwitterAgent:
                     resp = self.client.create_tweet(text=text, media_ids=[media_id])
                 else:
                     resp = self.client.create_tweet(text=text)
-                    
                 tweet_id = resp.data["id"]
                 log.info(
                     "%s posted: %s",
@@ -269,6 +264,8 @@ class TwitterAgent:
                     extra={"agent": self.name, "event": "posted"},
                 )
                 _record_tweet(text)
+                self.last_post_id = tweet_id
+                asyncio.create_task(self._maybe_cross_engage())
                 return True
             except Exception as exc:
                 log.error(
@@ -278,7 +275,61 @@ class TwitterAgent:
                     extra={"agent": self.name, "event": "error", "error": str(exc)},
                 )
                 raise
+        else:
+            self.last_post_id = int(time.time() * 1000)
+            asyncio.create_task(self._maybe_cross_engage())
+            return True
         return False
+
+    async def _maybe_cross_engage(self) -> None:
+        """Randomly cross-engage with another agent's tweet."""
+        import random
+        from eliza.shared_memory import get_shared_memory
+        await asyncio.sleep(random.uniform(0, 30))
+        if random.random() < 0.3:
+            mem = get_shared_memory()
+            recent = mem.get_recent_posts(exclude_agent=self.name)
+            if not recent:
+                return
+            target = random.choice(recent)
+            action = random.choice(["like", "reply"])
+            with CROSS_ENGAGE_LATENCY_SECONDS.labels(agent=self.name, action=action).time():
+                if action == "like":
+                    if self.dry_run:
+                        log.info(
+                            "cross_engage",
+                            extra={"agent": self.name, "event": "cross_engage", "target": target["id"], "action": "like"},
+                        )
+                    else:
+                        self.api_v1.create_favorite(target["id"])
+                    CROSS_ENGAGE_TOTAL.labels(agent=self.name, action="like").inc()
+                elif action == "reply":
+                    reply_text = self.craft_reply(target["text"])[:150]
+                    if self.dry_run:
+                        log.info(
+                            "cross_engage",
+                            extra={"agent": self.name, "event": "cross_engage", "target": target["id"], "action": "reply"},
+                        )
+                    else:
+                        self.client.create_tweet(text=reply_text, in_reply_to_tweet_id=target["id"])
+                    CROSS_ENGAGE_TOTAL.labels(agent=self.name, action="reply").inc()
+        return
+
+    async def run(self) -> None:
+        """Default run loop for persona agents."""
+        import random
+        import asyncio
+        schedule_cron = getattr(self, "schedule_cron", None)
+        while True:
+            text, img = self.craft_post()
+            await self.post(text, img)
+            if schedule_cron:
+                now = datetime.now(timezone.utc)
+                next_dt = croniter(schedule_cron, now).get_next(datetime)
+                sleep_s = (next_dt - now).total_seconds()
+                await asyncio.sleep(sleep_s)
+            else:
+                await asyncio.sleep(random.uniform(60, 180))
 
     async def like(self, tweet_id: int, *, dry_run: Optional[bool] = None) -> None:
         dry = self.dry_run if dry_run is None else dry_run

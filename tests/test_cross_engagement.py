@@ -1,7 +1,5 @@
 import asyncio
 import random
-import types
-import os
 import sys
 import pathlib
 import pytest

@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import List
+import random
+from agents.base import TwitterAgent
 
 
 @dataclass
@@ -64,3 +66,37 @@ class Sage(PersonaMixin):
             "Dispense calm guidance about $BITCOIN and the crypto journey. "
             "Close with a thoughtful hashtag."
         )
+
+
+def build_prompt(system_prompt: str, few_shots: List[str], user: str) -> str:
+    """Concatenate system, few-shots, and user prompt."""
+    shots = random.sample(few_shots, k=min(len(few_shots), random.randint(1, 3)))
+    return "\n".join([system_prompt] + shots + [user])
+
+
+class LoreMaster(TwitterAgent):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+    def craft_post(self, *args, **kwargs):
+        return "LoreMaster's crafted post"
+
+
+class MemeLord(TwitterAgent):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+    def craft_post(self, *args, **kwargs):
+        return "MemeLord's crafted post"
+
+
+class AlphaScry(TwitterAgent):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+    def craft_post(self, *args, **kwargs):
+        return "AlphaScry's crafted post"
+
+
+class GremlinGM(TwitterAgent):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+    def craft_post(self, *args, **kwargs):
+        return "GremlinGM's crafted post"

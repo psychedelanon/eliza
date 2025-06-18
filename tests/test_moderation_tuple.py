@@ -1,5 +1,4 @@
 """Test tuple handling in moderation."""
-import pytest
 from agents.base import TwitterAgent
 
 def test_post_tuple_moderation():

@@ -10,3 +10,7 @@ prometheus-client>=0.17
 requests>=2.32
 matplotlib>=3.9
 beautifulsoup4>=4.12
+croniter
+redis
+pytest-asyncio
+fakeredis

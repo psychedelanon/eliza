@@ -1,4 +1,9 @@
-import subprocess, sys, os, pathlib, textwrap, shutil, tempfile
+import subprocess
+import sys
+import os
+import pathlib
+import textwrap
+import shutil
 
 def test_agent3_cli_dry_run(tmp_path, monkeypatch):
     # copy run.py & minimal config into tmp dir

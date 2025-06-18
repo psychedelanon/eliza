@@ -28,7 +28,7 @@ def _get_provider() -> Provider:
     value = os.getenv("ELIZA_LLM_PROVIDER", Provider.OPENAI.value).lower()
     try:
         return Provider(value)
-    except ValueError as exc:  # pragma: no cover - unexpected provider
+    except ValueError:  # pragma: no cover - unexpected provider
         print(f"Warning: Unsupported provider: {value}, falling back to OpenAI")
         return Provider.OPENAI
 

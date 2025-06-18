@@ -3,22 +3,16 @@ import logging
 import logging.config
 import os
 import argparse
-import random
 import yaml
 from dotenv import load_dotenv
 import importlib.resources
 import importlib.util
 import sys
-import json
 from pathlib import Path
-from datetime import time as dtime, timezone
-from typing import Optional, Tuple
+from typing import Any, Dict, List
 import importlib
 
 from agents.base import TwitterAgent
-from scheduler.tasks import AgentRuntime, build_scheduler
-from metrics import init_metrics
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 class SafeJsonFormatter(logging.Formatter):
     """JSON formatter that safely handles missing agent/event fields."""
@@ -72,10 +66,11 @@ REPLY_DELAY_MAX = int(os.getenv("REPLY_DELAY_MAX", "20"))
 AGENT_CONFIG_PATH = os.getenv("AGENT_CONFIG", "configs/agents.yaml")
 
 AGENT_CLASS_MAP: dict[str, str] = {
-    "AgentLoreMaster": "agents.agent_lore_master:AgentLoreMaster",
-    "AgentHypeBeast": "agents.agent_hype_beast:AgentHypeBeast",
-    "AgentCynical": "agents.agent_cynical:AgentCynical",
-    "AgentSage": "agents.agent_sage:AgentSage",
+    "LoreMaster": "agents.personas:LoreMaster",
+    "MemeLord": "agents.personas:MemeLord",
+    "AlphaScry": "agents.personas:AlphaScry",
+    "GremlinGM": "agents.personas:GremlinGM",
+    "SwarmCoordinator": "agents.swarm:SwarmCoordinator",
 }
 
 def _has_creds(idx: int) -> bool:
@@ -84,26 +79,28 @@ def _has_creds(idx: int) -> bool:
     return all(os.getenv(prefix + k) for k in keys)
 
 
-def load_agent_configs(path: str = AGENT_CONFIG_PATH) -> dict:
-    if not os.path.exists(path):
-        log.warning("Agent config %s not found", path)
+def load_configs() -> Dict[str, Any]:
+    """Load agent configurations from YAML."""
+    config_path = Path("configs/agents.yaml")
+    if not config_path.exists():
+        print(f"Agent config {config_path} not found")
         return {}
-    with open(path) as f:
+    with open(config_path) as f:
         return yaml.safe_load(f) or {}
 
 
-def init_agents(configs, dry_run=False):
-    agents = []
+def init_agents(configs: Dict[str, Any], dry_run: bool = False) -> List[TwitterAgent]:
+    agents: List[TwitterAgent] = []
     for idx, (name, cfg) in enumerate(configs.items(), 1):
         dotted = AGENT_CLASS_MAP.get(name)
         if not dotted:
-            log.warning("%s not in registry", name)
+            print(f"{name} not in registry")
             continue
         module_path, cls_name = dotted.split(":")
         cls = getattr(importlib.import_module(module_path), cls_name)
-        agent = cls(idx=idx, name=name,
-                    personality=cfg.get("persona", ""),
-                    dry_run=dry_run)
+        agent = cls(idx=idx, name=name, personality=cfg.get("persona", ""), dry_run=dry_run)
+        if "schedule_cron" in cfg:
+            setattr(agent, "schedule_cron", cfg["schedule_cron"])
         agents.append(agent)
     return agents
 
@@ -128,75 +125,51 @@ def parse_args() -> argparse.Namespace:
     """Parse command line arguments."""
     parser = argparse.ArgumentParser()
     parser.add_argument("--once", action="store_true", help="run scheduled jobs once then exit")
-    parser.add_argument(
-        "--demo",
-        action="store_true",
-        help="post once and self-reply for each agent then exit",
-    )
-    parser.add_argument(
-        "--dry-run",
-        action="store_true",
-        help="skip API calls and operate without credentials",
-    )
-    parser.add_argument(
-        "--agent",
-        help="comma-separated agent names to run",
-    )
+    parser.add_argument("--swarm", action="store_true", help="run SwarmCoordinator and all persona agents")
+    parser.add_argument("--dry-run", action="store_true", help="skip API calls and operate without credentials")
+    parser.add_argument("--agent", help="comma-separated agent names to run")
     return parser.parse_args()
-
-def load_configs() -> dict:
-    """Load agent configurations from YAML."""
-    config_path = Path("configs/agents.yaml")
-    if not config_path.exists():
-        log.warning("Agent config %s not found", config_path)
-        return {}
-    with open(config_path) as f:
-        return yaml.safe_load(f) or {}
 
 async def main() -> None:
     """Main entry point."""
     args = parse_args()
     configs = load_configs()
-    
     if args.dry_run:
         print("dry run mode")
-    
+    if args.swarm:
+        agent_names = ["SwarmCoordinator", "LoreMaster", "MemeLord", "AlphaScry", "GremlinGM"]
+        filtered_configs = {k: v for k, v in configs.items() if k in agent_names}
+        agents = init_agents(filtered_configs, dry_run=args.dry_run)
+        for agent in agents:
+            print(f"{agent.name} running in {'dry run' if args.dry_run else 'live'} mode")
+        tasks = [asyncio.create_task(agent.run()) for agent in agents]
+        await asyncio.gather(*tasks)
+        return
     if args.agent:
         agent_names = [a.strip() for a in args.agent.split(",") if a.strip()]
         filtered_configs = {k: v for k, v in configs.items() if k in agent_names}
     else:
         filtered_configs = configs
-
     agents = init_agents(filtered_configs, dry_run=args.dry_run)
     for agent in agents:
         print(f"{agent.name} running in {'dry run' if args.dry_run else 'live'} mode")
-    for agent in agents:
-        for peer in agents:
-            if peer is not agent:
-                await agent.follow(peer.name, dry_run=args.dry_run)
-    
     if not agents:
         print(f"No agents found matching {args.agent}")
         return
-        
-    runtimes = [
-        AgentRuntime(
-            agent,
-            dry_run=args.dry_run,
-            schedule_cron=filtered_configs.get(agent.name, {}).get("schedule_cron"),
-        )
-        for agent in agents
-    ]
-
     if args.once:
-        await asyncio.gather(*(rt.periodic_post() for rt in runtimes))
+        for agent in agents:
+            try:
+                text, img = agent.craft_post() if hasattr(agent, 'craft_post') else agent.create_post()
+                if text:
+                    await agent.post(text, img)
+            except Exception as exc:
+                print(f"Error posting with {agent.name}: {exc}")
         return
-
-    sched = build_scheduler(runtimes)
-    sched.start()
-    while True:
-        await asyncio.sleep(3600)
-
+    tasks = [asyncio.create_task(agent.run()) for agent in agents]
+    await asyncio.gather(*tasks)
 
 if __name__ == "__main__":
+    import logging
+    logging.basicConfig(level=logging.INFO)
+    log = logging.getLogger("runner")
     asyncio.run(main())

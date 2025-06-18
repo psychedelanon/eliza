@@ -1,0 +1,7 @@
+pytest
+pytest-asyncio
+pytest-cov
+fakeredis
+freezegun
+ruff
+black 

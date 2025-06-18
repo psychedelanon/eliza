@@ -10,7 +10,6 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 import requests
 
-from blacksmith_forge.quickfire import generate_price_chart
 from agents.base import TwitterAgent
 from agents.personas import HypeBeast
 

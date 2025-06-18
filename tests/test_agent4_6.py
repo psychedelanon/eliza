@@ -1,7 +1,5 @@
 import yaml
 from pathlib import Path
-import types
-import random
 
 import agents.agent4 as agent4
 import agents.agent5 as agent5

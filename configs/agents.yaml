@@ -1,12 +1,26 @@
 AgentLoreMaster:
   persona: lore_master
-  schedule_cron: "*/17 * * * *"
+  schedule_cron: '*/17 * * * *'
 AgentHypeBeast:
   persona: hype_beast
-  schedule_cron: "*/13 * * * *"
+  schedule_cron: '*/13 * * * *'
 AgentCynical:
   persona: cynical_sniper
-  schedule_cron: "*/19 * * * *"
+  schedule_cron: '*/19 * * * *'
 AgentSage:
   persona: sage
-  schedule_cron: "*/23 * * * *"
+  schedule_cron: '*/23 * * * *'
+LoreMaster:
+  persona: LoreMaster
+  schedule_cron: '*/30 * * * *'
+MemeLord:
+  persona: MemeLord
+  schedule_cron: '*/30 * * * *'
+AlphaScry:
+  persona: AlphaScry
+  schedule_cron: '*/30 * * * *'
+GremlinGM:
+  persona: GremlinGM
+  schedule_cron: '*/30 * * * *'
+SwarmCoordinator:
+  persona: SwarmCoordinator

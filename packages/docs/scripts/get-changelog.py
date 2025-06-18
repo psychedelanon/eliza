@@ -11,7 +11,6 @@ This script:
 import re
 import sys
 import os
-import json
 import requests
 from datetime import datetime
 from pathlib import Path

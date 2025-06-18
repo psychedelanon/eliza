@@ -7,18 +7,13 @@ Utilities for Agent2 (crypto market bot).
 """
 from __future__ import annotations
 
-import io
-import textwrap
 from datetime import datetime, timezone
 from pathlib import Path
 
 import matplotlib.pyplot as plt
 import requests
-from tenacity import retry, wait_fixed, stop_after_attempt, wait_exponential
-import logging
-import matplotlib.image as mpimg
+from tenacity import retry, wait_fixed, stop_after_attempt
 import matplotlib.patches as patches
-from matplotlib.offsetbox import OffsetImage, AnnotationBbox
 
 
 COIN_IDS = {

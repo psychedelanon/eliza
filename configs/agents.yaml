@@ -1,21 +1,12 @@
-Agent1:
-  persona: 'friendly and upbeat'
-  hashtags: ['#MemeMagic', '#CryptoLife']
-  media: true
-
-Agent2:
-  persona: 'crypto market bot'
-  hashtags: ['#BTC', '#HPOS10I', '#Crypto']
-  media: true
-
-Agent3:
-  persona: AlphaScry oracle
-
-Agent4:
-  persona: GremlinGM
-
-Agent5:
-  persona: GremlinMeme
-
-Agent6:
-  persona: GremlinLore
+AgentLoreMaster:
+  persona: lore_master
+  schedule_cron: "*/17 * * * *"
+AgentHypeBeast:
+  persona: hype_beast
+  schedule_cron: "*/13 * * * *"
+AgentCynical:
+  persona: cynical_sniper
+  schedule_cron: "*/19 * * * *"
+AgentSage:
+  persona: sage
+  schedule_cron: "*/23 * * * *"

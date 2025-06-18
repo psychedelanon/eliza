@@ -280,6 +280,27 @@ class TwitterAgent:
                 raise
         return False
 
+    async def like(self, tweet_id: int, *, dry_run: Optional[bool] = None) -> None:
+        dry = self.dry_run if dry_run is None else dry_run
+        if dry:
+            log.info("%s would like %s", self.name, tweet_id, extra={"agent": self.name, "event": "liked", "dry": True})
+            return
+        try:
+            self.client.like(tweet_id)
+            log.info("%s liked %s", self.name, tweet_id, extra={"agent": self.name, "event": "liked"})
+        except Exception as exc:
+            log.warning("%s like failed: %s", self.name, exc, extra={"agent": self.name, "event": "error"})
+
+    async def follow(self, username: str, *, dry_run: Optional[bool] = None) -> None:
+        dry = self.dry_run if dry_run is None else dry_run
+        if dry:
+            log.info("%s would follow %s", self.name, username, extra={"agent": self.name, "event": "follow", "dry": True})
+            return
+        try:
+            self.client.follow_user(username)
+        except Exception as exc:
+            log.warning("%s follow failed: %s", self.name, exc, extra={"agent": self.name, "event": "error"})
+
     async def check_mentions(self, since_id: Optional[int] = None) -> int:
         if self.dry_run:
             log.info(

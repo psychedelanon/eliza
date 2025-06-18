@@ -185,7 +185,7 @@ is `8000`.
 Run the coordinated hype agents in dry-run mode:
 
 ```bash
-python run.py --agent Agent4,Agent5,Agent6 --once --dry-run
+python run.py --agent AgentLoreMaster,AgentHypeBeast,AgentCynical,AgentSage --dry-run
 ```
 
 ---

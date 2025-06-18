@@ -24,6 +24,11 @@ def _maybe_tag(text: str) -> str:
     return text[:240]
 
 
+class GremlinMeme(TwitterAgent):
+    def craft_post(self):
+        return "Meme magic is real! #BTC", None
+
+
 class Agent5(TwitterAgent):
     tag = "GremlinMeme"
 

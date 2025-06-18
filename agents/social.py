@@ -1,3 +1,4 @@
+from __future__ import annotations
 import asyncio
 import logging
 import random
@@ -5,9 +6,14 @@ from typing import List, Optional
 
 from agents.base import TwitterAgent
 from eliza import llm
-from metrics import AMPLIFICATIONS_TOTAL
+try:
+    from metrics import AMPLIFICATIONS_TOTAL
+except ImportError:
+    AMPLIFICATIONS_TOTAL = None
 
-log = logging.getLogger(__name__)
+log = logging.getLogger("social")
+
+ACTIONS = ("like", "retweet", "quote", "reply")
 
 
 async def _get_last_tweet_id(peer: TwitterAgent) -> Optional[int]:
@@ -28,39 +34,34 @@ async def _get_last_tweet_id(peer: TwitterAgent) -> Optional[int]:
 
 
 async def amplify(bot: TwitterAgent, peers: List[TwitterAgent], *, dry: bool) -> None:
-    """Randomly like/RT/reply to a peer's last tweet with jitter and persona-aware text."""
-
+    """
+    Randomly pick a peer's last tweet and perform 1‑2 engagement actions.
+    Uses jitter so swarm traffic looks organic.
+    """
     if not peers:
         return
-
-    peer = random.choice(peers)
-    tweet_id = await _get_last_tweet_id(peer)
-    if not tweet_id:
+    peer = random.choice([p for p in peers if p.name != bot.name])
+    target_id = getattr(peer, "last_post_id", None)
+    if not target_id:
         return
-
-    actions = ["like", "retweet", "quote", "reply"]
-    selected = random.sample(actions, k=random.randint(1, 2))
-
-    for action in selected:
-        try:
+    for _ in range(random.randint(1, 2)):
+        action = random.choice(ACTIONS)
+        jitter = random.uniform(30, 300)
+        await asyncio.sleep(jitter)
+        if action == "like":
             if dry:
-                log.info("%s would %s %s", bot.name, action, tweet_id)
-            elif action == "like":
-                bot.client.like(tweet_id)
-            elif action == "retweet":
-                bot.client.retweet(tweet_id)
-            elif action == "quote":
-                text = llm.complete(
-                    f"{bot.personality} quick hype one-liner for {peer.personality}",
-                    max_tokens=40,
-                )
-                bot.client.create_tweet(text=text, quote_tweet_id=tweet_id)
-            elif action == "reply":
-                text = llm.complete(
-                    f"{bot.personality} short reply hyping bitcoin", max_tokens=40
-                )
-                await asyncio.sleep(random.uniform(120, 600))
-                bot.client.create_tweet(text=text, in_reply_to_tweet_id=tweet_id)
+                log.info("%s would like %s", bot.name, target_id)
+            else:
+                bot.client.like(target_id)
+        elif action == "retweet":
+            if dry:
+                log.info("%s would retweet %s", bot.name, target_id)
+            else:
+                bot.client.retweet(target_id)
+        # TODO: implement quote & reply with LLM
+        log.info(
+            "amplify",
+            extra={"agent": bot.name, "event": "amplify", "action": action},
+        )
+        if AMPLIFICATIONS_TOTAL:
             AMPLIFICATIONS_TOTAL.labels(agent=bot.name, action=action).inc()
-        except Exception as exc:  # pragma: no cover - network
-            log.exception("amplify %s failed", action, exc_info=exc)

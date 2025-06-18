@@ -19,7 +19,8 @@ import openai
 from metrics import TWEETS_POSTED, REPLIES_POSTED, OPENAI_CALLS
 
 import tweepy
-from tenacity import retry, wait_random_exponential, stop_after_attempt
+from tenacity import retry, wait_random_exponential, stop_after_attempt, wait_exponential, retry_if_exception_type
+import requests
 
 log = logging.getLogger("agent")
 
@@ -102,12 +103,6 @@ class TwitterAgent:
         self._load_creds_from_env()
         if not self.dry_run:
             self.authenticate()
-        else:
-            log.info(
-                "%s running in dry run mode",
-                self.name,
-                extra={"agent": self.name, "event": "init"},
-            )
 
     def _load_creds_from_env(self) -> None:
         if not self.api_key:
@@ -192,73 +187,17 @@ class TwitterAgent:
         return quickfire.create_reply(self.personality, original_text)
 
     @retry(
-        wait=wait_random_exponential(multiplier=2, max=60),
-        stop=stop_after_attempt(5),
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=4, max=10),
+        retry=retry_if_exception_type((tweepy.TweepyException, requests.RequestException)),
         reraise=True,
     )
-    def post(self, post: tuple[str, Optional[str]], *, dry_run: Optional[bool] = None) -> int:
-        """Post a tweet."""
-        text, img_path = post
-        if dry_run is None:
-            dry_run = self.dry_run
-        if not _passes_moderation(text):
-            reason = "moderation"
-            log.debug("%s skip=%s text=%r", self.name, reason, text, extra={"agent": self.name, "event": "skip", "reason": reason})
-            log.warning(
-                "%s blocked by moderation",
-                self.name,
-                extra={"agent": self.name, "event": "moderation_blocked"},
-            )
-            return -1
-        if _is_duplicate(text):
-            reason = "duplicate"
-            log.debug("%s skip=%s text=%r", self.name, reason, text, extra={"agent": self.name, "event": "skip", "reason": reason})
-            log.info(
-                "duplicate avoided",
-                extra={"agent": self.name, "event": "duplicate"},
-            )
-            return -1
-        if dry_run:
-            log.info(
-                "%s would post: %s",
-                self.name,
-                text,
-                extra={"agent": self.name, "event": "posted", "dry": True},
-            )
-            _record_tweet(text)
-            return int(time.time() * 1000)
-        if img_path and Path(img_path).exists() and not dry_run:
-            media = self.api_v1.media_upload(img_path)
-            media_id = media.media_id
-            resp = self.client.create_tweet(text=text, media_ids=[media_id])
-            log.info(
-                "%s uploaded media %s",
-                self.name,
-                media_id,
-                extra={"agent": self.name, "event": "media_post"},
-            )
-        else:
-            resp = self.client.create_tweet(text=text)
-        tweet_id = resp.data["id"]
-        TWEETS_POSTED.inc()
-        log.info(
-            "%s posted tweet %s",
-            self.name,
-            tweet_id,
-            extra={"agent": self.name, "event": "posted", "dry": False},
-        )
-        _record_tweet(text)
-        return tweet_id
-
-    @retry(
-        wait=wait_random_exponential(multiplier=2, max=60),
-        stop=stop_after_attempt(5),
-        reraise=True,
-    )
-    def reply(self, tweet_id: str, text: str, *, dry_run: Optional[bool] = None) -> Optional[str]:
+    async def reply(self, tweet_id: int, original_text: str, *, dry_run: Optional[bool] = None) -> int:
         """Reply to a tweet."""
         if dry_run is None:
             dry_run = self.dry_run
+            
+        text = self._generate_reply(original_text)
         if not _passes_moderation(text):
             reason = "moderation"
             log.debug("%s skip=%s text=%r", self.name, reason, text, extra={"agent": self.name, "event": "skip", "reason": reason})
@@ -267,7 +206,8 @@ class TwitterAgent:
                 self.name,
                 extra={"agent": self.name, "event": "moderation_blocked"},
             )
-            return None
+            return -1
+            
         if dry_run:
             log.info(
                 "%s would reply: %s",
@@ -275,16 +215,21 @@ class TwitterAgent:
                 text,
                 extra={"agent": self.name, "event": "replied", "dry": True},
             )
-            return None
+            return int(time.time() * 1000)
+            
         try:
-            resp = self.client.create_tweet(text=text, in_reply_to_tweet_id=tweet_id)
-            log.info(
-                "%s replied to tweet %s",
-                self.name,
-                tweet_id,
-                extra={"agent": self.name, "event": "replied", "dry": False},
+            resp = self.client.create_tweet(
+                text=text,
+                in_reply_to_tweet_id=tweet_id,
             )
-            return resp.data["id"]
+            tweet_id = resp.data["id"]
+            log.info(
+                "%s replied: %s",
+                self.name,
+                text,
+                extra={"agent": self.name, "event": "replied"},
+            )
+            return tweet_id
         except Exception as exc:
             log.error(
                 "%s reply failed: %s",
@@ -293,6 +238,47 @@ class TwitterAgent:
                 extra={"agent": self.name, "event": "error", "error": str(exc)},
             )
             raise
+
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=4, max=10),
+        retry=retry_if_exception_type((tweepy.TweepyException, requests.RequestException)),
+        reraise=True,
+    )
+    async def post(self, text: str, img: Optional[str] = None) -> bool:
+        """Post a tweet with optional image."""
+        if not _passes_moderation(text):
+            reason = "moderation"
+            log.warning(f"Post rejected: {reason}")
+            return False
+            
+        if not self.dry_run:
+            try:
+                if img and Path(img).exists():
+                    media = self.api_v1.media_upload(img)
+                    media_id = media.media_id
+                    resp = self.client.create_tweet(text=text, media_ids=[media_id])
+                else:
+                    resp = self.client.create_tweet(text=text)
+                    
+                tweet_id = resp.data["id"]
+                log.info(
+                    "%s posted: %s",
+                    self.name,
+                    text,
+                    extra={"agent": self.name, "event": "posted"},
+                )
+                _record_tweet(text)
+                return True
+            except Exception as exc:
+                log.error(
+                    "%s post failed: %s",
+                    self.name,
+                    exc,
+                    extra={"agent": self.name, "event": "error", "error": str(exc)},
+                )
+                raise
+        return False
 
     async def check_mentions(self, since_id: Optional[int] = None) -> int:
         if self.dry_run:

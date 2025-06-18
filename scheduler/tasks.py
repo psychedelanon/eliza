@@ -24,22 +24,28 @@ class AgentRuntime:
         self.last_mention_id = None
         self.daily_job = daily_job
 
-    async def periodic_post(self):
-        text, img_path = self.agent.craft_post()
-        tweet_id = self.agent.post((text, img_path), dry_run=self.dry_run)
-        if img_path and not self.dry_run:
-            log.info(
-                "media ready",
-                extra={
-                    "agent": self.agent.name,
-                    "event": "media_ready",
-                    "path": img_path,
-                },
-            )
-        if tweet_id != -1:
-            await asyncio.sleep(random.uniform(REPLY_DELAY_MIN, REPLY_DELAY_MAX))
-            self.agent.reply(
-                tweet_id=tweet_id, original_text=text, dry_run=self.dry_run
+    async def periodic_post(self) -> None:
+        """Post a tweet periodically."""
+        if not self.agent:
+            return
+            
+        try:
+            text, img = self.agent.create_post()
+            if not text:
+                return
+                
+            tweet_id = await self.agent.post(text, img)
+            if tweet_id and not self.dry_run:
+                await self.agent.reply(
+                    tweet_id=tweet_id,
+                    original_text=text,
+                    dry_run=self.dry_run
+                )
+        except Exception as exc:
+            log.error(
+                "Periodic post failed: %s",
+                exc,
+                extra={"agent": self.agent.name, "event": "error", "error": str(exc)},
             )
 
     async def monitor_mentions(self):

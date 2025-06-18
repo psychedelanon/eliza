@@ -1,9 +1,21 @@
 Agent1:
-  persona: "friendly and upbeat"
-  hashtags: ["#MemeMagic", "#CryptoLife"]
+  persona: 'friendly and upbeat'
+  hashtags: ['#MemeMagic', '#CryptoLife']
   media: true
 
 Agent2:
-  persona: "crypto market bot"
-  hashtags: ["#BTC", "#HPOS10I", "#Crypto"]
+  persona: 'crypto market bot'
+  hashtags: ['#BTC', '#HPOS10I', '#Crypto']
   media: true
+
+Agent3:
+  persona: AlphaScry oracle
+
+Agent4:
+  persona: GremlinGM
+
+Agent5:
+  persona: GremlinMeme
+
+Agent6:
+  persona: GremlinLore

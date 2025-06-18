@@ -1,0 +1,10 @@
+{
+  "Agent1": {
+    "persona": "A friendly breakfast enthusiast who loves $BITCOIN",
+    "schedule": "*/30 * * * *"
+  },
+  "Agent2": {
+    "persona": "A crypto price comparison expert",
+    "schedule": "0 */4 * * *"
+  }
+}

@@ -12,12 +12,15 @@ import sys
 import json
 from pathlib import Path
 from datetime import time as dtime, timezone
+from typing import Optional, Tuple
+import importlib
 
 from agents.base import TwitterAgent
 from agents.agent2 import Agent2
-from scheduler.tasks import AgentRuntime, build_scheduler
+from scheduler.tasks import AgentRuntime
 from metrics import init_metrics
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from agents.agent1 import Agent1
 
 class SafeJsonFormatter(logging.Formatter):
     """JSON formatter that safely handles missing agent/event fields."""
@@ -70,6 +73,14 @@ REPLY_DELAY_MAX = int(os.getenv("REPLY_DELAY_MAX", "20"))
 
 AGENT_CONFIG_PATH = os.getenv("AGENT_CONFIG", "configs/agents.yaml")
 
+AGENT_CLASS_MAP: dict[str, str] = {
+    "Agent1": "agents.agent1:Agent1",
+    "Agent2": "agents.agent2:CryptoCompareAgent",
+    "Agent3": "agents.agent3:AlphaScry",
+    "Agent4": "agents.agent4:GremlinGM",
+    "Agent5": "agents.agent5:GremlinMeme",
+    "Agent6": "agents.agent6:GremlinLore",
+}
 
 def _has_creds(idx: int) -> bool:
     prefix = f"TWITTER_AGENT{idx}_"
@@ -85,31 +96,18 @@ def load_agent_configs(path: str = AGENT_CONFIG_PATH) -> dict:
         return yaml.safe_load(f) or {}
 
 
-def init_agents(configs: dict, dry_run: bool = False):
+def init_agents(configs, dry_run=False):
     agents = []
-    for name, cfg in configs.items():
-        try:
-            idx = int(name.replace("Agent", ""))
-        except ValueError:
-            log.warning("Invalid agent name %s", name)
+    for idx, (name, cfg) in enumerate(configs.items(), 1):
+        dotted = AGENT_CLASS_MAP.get(name)
+        if not dotted:
+            log.warning("%s not in registry", name)
             continue
-        if not _has_creds(idx):
-            if dry_run:
-                log.info("%s using dry run (no creds)", name)
-            else:
-                log.info("%s skipped - no creds", name)
-                continue
-        
-        # Use custom agent classes when available
-        if name == "Agent1":
-            from agents.agent1 import Agent1
-            agent = Agent1(idx=idx, name=name, personality=cfg.get("persona", ""), dry_run=dry_run)
-        elif name == "Agent2":
-            from agents.agent2 import Agent2
-            agent = Agent2(idx=idx, name=name, personality=cfg.get("persona", ""), dry_run=dry_run)
-        else:
-            agent = TwitterAgent(idx=idx, name=name, personality=cfg.get("persona", ""), dry_run=dry_run)
-        
+        module_path, cls_name = dotted.split(":")
+        cls = getattr(importlib.import_module(module_path), cls_name)
+        agent = cls(idx=idx, name=name,
+                    personality=cfg.get("persona", ""),
+                    dry_run=dry_run)
         agents.append(agent)
     return agents
 
@@ -130,7 +128,8 @@ async def job_crypto_post():
             },
         )
 
-async def main():
+def parse_args() -> argparse.Namespace:
+    """Parse command line arguments."""
     parser = argparse.ArgumentParser()
     parser.add_argument("--once", action="store_true", help="run scheduled jobs once then exit")
     parser.add_argument(
@@ -147,73 +146,51 @@ async def main():
         "--agent",
         help="comma-separated agent names to run",
     )
-    args = parser.parse_args()
+    return parser.parse_args()
 
-    if os.getenv("METRICS_ENABLE", "false").lower() == "true":
-        init_metrics(int(os.getenv("METRICS_PORT", "8000")))
+def load_configs() -> dict:
+    """Load agent configurations from YAML."""
+    config_path = Path("configs/agents.yaml")
+    if not config_path.exists():
+        log.warning("Agent config %s not found", config_path)
+        return {}
+    with open(config_path) as f:
+        return yaml.safe_load(f) or {}
 
-    configs = load_agent_configs()
+async def main() -> None:
+    """Main entry point."""
+    args = parse_args()
+    configs = load_configs()
+    
     if args.dry_run:
-        log.info("dry run mode", extra={"event": "dry_run"})
-
-    agent_filter = None
+        print("dry run mode")
+    
     if args.agent:
-        agent_filter = {name.strip() for name in args.agent.split(',') if name.strip()}
+        agent_names = [a.strip() for a in args.agent.split(",") if a.strip()]
+        filtered_configs = {k: v for k, v in configs.items() if k in agent_names}
+    else:
+        filtered_configs = configs
 
-    agent_runtimes = [
-        AgentRuntime(
-            a,
-            dry_run=args.dry_run,
-            daily_job=a.name == "Agent2",
-        )
-        for a in init_agents(configs, dry_run=args.dry_run)
-        if not agent_filter or a.name in agent_filter
-    ]
-
-    if args.demo or args.agent and "Agent2" in (agent_filter or {}):
-        for rt in agent_runtimes:
-            text, img_path = rt.agent.craft_post()
-            tweet_id = rt.agent.post((text, img_path), dry_run=args.dry_run)
-            log.info(
-                "demo post",
-                extra={
-                    "agent": rt.agent.name,
-                    "event": "demo_post",
-                    "post_id": tweet_id,
-                    "text": text,
-                },
-            )
-            print(json.dumps({"event": "demo_post", "agent": rt.agent.name}))
-            if tweet_id != -1 and not args.agent:  # Only do replies if not testing specific agent
-                await asyncio.sleep(random.uniform(REPLY_DELAY_MIN, REPLY_DELAY_MAX))
-                reply_text = rt.agent.craft_reply(text)
-                reply_id = rt.agent.reply(
-                    tweet_id=tweet_id, text=reply_text, dry_run=args.dry_run
-                )
-                log.info(
-                    "demo reply",
-                    extra={"agent": rt.agent.name, "event": "demo_reply", "post_id": reply_id},
-                )
-                print(json.dumps({"event": "demo_reply", "agent": rt.agent.name}))
+    agents = init_agents(filtered_configs, dry_run=args.dry_run)
+    for agent in agents:
+        print(f"{agent.name} running in {'dry run' if args.dry_run else 'live'} mode")
+    
+    if not agents:
+        print(f"No agents found matching {args.agent}")
         return
-
+        
     if args.once:
-        for rt in agent_runtimes:
-            await rt.periodic_post()
+        for agent in agents:
+            try:
+                text, img = agent.craft_post() if hasattr(agent, 'craft_post') else agent.create_post()
+                if text:
+                    await agent.post(text, img)
+            except Exception as exc:
+                print(f"Error posting with {agent.name}: {exc}")
         return
-
-    # Set up daily crypto post scheduler
-    sched = AsyncIOScheduler(timezone=timezone.utc)
-    # Post every day at 21:30 UTC
-    sched.add_job(job_crypto_post, trigger="cron", hour=21, minute=30, id="daily_crypto")
-    sched.start()
-
-    # Main loop for other agents
-    while True:
-        for rt in agent_runtimes:
-            if rt.agent.name != "Agent2":  # Agent2 is handled by scheduler
-                await rt.periodic_post()
-        await asyncio.sleep(60)  # Check every minute
+        
+    rt = AgentRuntime(agents[0], dry_run=args.dry_run)
+    await rt.periodic_post()
 
 
 if __name__ == "__main__":

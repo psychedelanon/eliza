@@ -17,6 +17,7 @@ import requests
 from bs4 import BeautifulSoup
 
 from eliza import llm
+from agents.base import TwitterAgent
 
 
 log = logging.getLogger("token_narrator")
@@ -140,6 +141,11 @@ def main() -> None:
         print(f'"{narrative}"')
     else:
         print(narrative)
+
+
+class AlphaScry(TwitterAgent):
+    def craft_post(self):
+        return "AlphaScry oracle sees all. $BTC #Alpha", None
 
 
 if __name__ == "__main__":  # pragma: no cover - manual use

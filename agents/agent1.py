@@ -5,11 +5,18 @@ from agents.base import TwitterAgent
 from eliza.llm import complete
 
 class Agent1(TwitterAgent):
-    """Agent that generates breakfast-themed tweets about $BITCOIN."""
+    """Sproto‑style gremlin tweeter (morning ramblings)."""
     
-    def __init__(self, name: str = "Agent1", *, dry_run: bool = False):
-        """Initialize the agent."""
-        super().__init__(name, dry_run=dry_run)
+    def __init__(self, *, idx: int, name: str, personality: str, dry_run: bool = False) -> None:
+        """Initialize the agent.
+        
+        Args:
+            idx: The index of the agent
+            name: The name of the agent
+            personality: The personality description
+            dry_run: Whether to run in dry run mode
+        """
+        super().__init__(idx=idx, name=name, personality=personality, dry_run=dry_run)
         
     def _generate_tweet(self) -> str:
         """Generate a tweet about breakfast and $BITCOIN."""
@@ -30,6 +37,8 @@ class Agent1(TwitterAgent):
         
         raw = complete(prompt, temperature=1.05, max_tokens=180)
         text = raw.strip()
+        # Remove leading/trailing quotes (single or double)
+        text = text.strip('"').strip("'")
         
         # Ensure $BITCOIN is mentioned
         if "$BITCOIN" not in text:

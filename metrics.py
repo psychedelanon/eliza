@@ -31,11 +31,7 @@ TWEETS_POSTED = CounterWrapper("tweets_posted_total", "Tweets successfully poste
 REPLIES_POSTED = CounterWrapper("replies_posted_total", "Replies successfully posted")
 OPENAI_CALLS = CounterWrapper("openai_calls_total", "OpenAI API calls made")
 LLM_LATENCY = Histogram("llm_request_seconds", "LLM request latency in seconds")
-AMPLIFICATIONS_TOTAL = Counter(
-    "amplifications_total",
-    "Amplification actions performed",
-    labelnames=["agent", "action"],
-)
+AMPLIFICATIONS_TOTAL = Counter("eliza_amplifications_total", "Boosts", ["agent", "action"])
 
 
 def init_metrics(port: int = 8000) -> None:

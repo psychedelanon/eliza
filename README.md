@@ -179,6 +179,14 @@ defaults.
 Set `METRICS_PORT` to expose Prometheus metrics at `/metrics`. The default port
 is `8000`.
 
+### Launching the Gremlin Swarm
+
+Run the coordinated hype agents in dry-run mode:
+
+```bash
+python run.py --agent Agent4,Agent5,Agent6 --once --dry-run
+```
+
 ---
 
 ### Automatically Start Eliza

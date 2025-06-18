@@ -13,3 +13,18 @@ jobs:
     func: agents.agent3:run_once
     trigger: cron
     minute: "*/10"
+  - id: gremlin_gm
+    func: agents.agent4:run_once
+    trigger: cron
+    hour: 11
+    jitter: 7200
+  - id: gremlin_meme
+    func: agents.agent5:run_once
+    trigger: cron
+    hour: 15
+    jitter: 7200
+  - id: gremlin_lore
+    func: agents.agent6:run_once
+    trigger: cron
+    hour: 19
+    jitter: 7200

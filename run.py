@@ -16,11 +16,9 @@ from typing import Optional, Tuple
 import importlib
 
 from agents.base import TwitterAgent
-from agents.agent2 import Agent2
-from scheduler.tasks import AgentRuntime
+from scheduler.tasks import AgentRuntime, build_scheduler
 from metrics import init_metrics
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from agents.agent1 import Agent1
 
 class SafeJsonFormatter(logging.Formatter):
     """JSON formatter that safely handles missing agent/event fields."""
@@ -74,12 +72,10 @@ REPLY_DELAY_MAX = int(os.getenv("REPLY_DELAY_MAX", "20"))
 AGENT_CONFIG_PATH = os.getenv("AGENT_CONFIG", "configs/agents.yaml")
 
 AGENT_CLASS_MAP: dict[str, str] = {
-    "Agent1": "agents.agent1:Agent1",
-    "Agent2": "agents.agent2:CryptoCompareAgent",
-    "Agent3": "agents.agent3:AlphaScry",
-    "Agent4": "agents.agent4:GremlinGM",
-    "Agent5": "agents.agent5:GremlinMeme",
-    "Agent6": "agents.agent6:GremlinLore",
+    "AgentLoreMaster": "agents.agent_lore_master:AgentLoreMaster",
+    "AgentHypeBeast": "agents.agent_hype_beast:AgentHypeBeast",
+    "AgentCynical": "agents.agent_cynical:AgentCynical",
+    "AgentSage": "agents.agent_sage:AgentSage",
 }
 
 def _has_creds(idx: int) -> bool:
@@ -114,7 +110,7 @@ def init_agents(configs, dry_run=False):
 
 async def job_crypto_post():
     """Daily job to post BTC vs BITCOIN comparison."""
-    agent2 = next(a for a in agent_runtimes if a.agent.name == "Agent2")
+    agent2 = next(a for a in agent_runtimes if a.agent.name == "AgentHypeBeast")
     text, img_path = agent2.agent.craft_post()
     tweet_id = agent2.agent.post((text, img_path), dry_run=args.dry_run)
     if tweet_id != -1:
@@ -174,23 +170,32 @@ async def main() -> None:
     agents = init_agents(filtered_configs, dry_run=args.dry_run)
     for agent in agents:
         print(f"{agent.name} running in {'dry run' if args.dry_run else 'live'} mode")
+    for agent in agents:
+        for peer in agents:
+            if peer is not agent:
+                await agent.follow(peer.name, dry_run=args.dry_run)
     
     if not agents:
         print(f"No agents found matching {args.agent}")
         return
         
+    runtimes = [
+        AgentRuntime(
+            agent,
+            dry_run=args.dry_run,
+            schedule_cron=filtered_configs.get(agent.name, {}).get("schedule_cron"),
+        )
+        for agent in agents
+    ]
+
     if args.once:
-        for agent in agents:
-            try:
-                text, img = agent.craft_post() if hasattr(agent, 'craft_post') else agent.create_post()
-                if text:
-                    await agent.post(text, img)
-            except Exception as exc:
-                print(f"Error posting with {agent.name}: {exc}")
+        await asyncio.gather(*(rt.periodic_post() for rt in runtimes))
         return
-        
-    rt = AgentRuntime(agents[0], dry_run=args.dry_run)
-    await rt.periodic_post()
+
+    sched = build_scheduler(runtimes)
+    sched.start()
+    while True:
+        await asyncio.sleep(3600)
 
 
 if __name__ == "__main__":

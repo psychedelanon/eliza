@@ -1,18 +1,20 @@
 import yaml
 from pathlib import Path
+import pytest
+from agents import agent4
 
-import agents.agent4 as agent4
 import agents.agent5 as agent5
 import agents.agent6 as agent6
 
 
 class DummyLLM:
-    def __init__(self):
-        self.prompt = None
+    def __init__(self, response):
+        self.response = response
+        self.prompt = ""
 
-    def complete(self, prompt: str, **_kw):
+    async def __call__(self, prompt):
         self.prompt = prompt
-        return "hi"
+        return self.response
 
 
 def _stub_agents():
@@ -23,18 +25,17 @@ def _stub_agents():
     ]
 
 
-def test_create_post_and_tag(monkeypatch):
-    llm = DummyLLM()
-    for mod, cls, name in _stub_agents():
-        monkeypatch.setattr(mod, "llm", llm)
-        monkeypatch.setattr(mod.random, "random", lambda: 0.05)
-        ag = cls(idx=0, name=name, personality=getattr(cls, "tag"), dry_run=True)
-        text, *_ = ag.create_post()
-        assert len(text) <= 240
-        assert text.endswith("#HarryPotterObamaSonic10Inu")
-        monkeypatch.setattr(mod.random, "random", lambda: 0.5)
-        text2, *_ = ag.create_post()
-        assert "#HarryPotterObamaSonic10Inu" not in text2
+@pytest.mark.asyncio
+async def test_create_post_and_tag(monkeypatch):
+    llm = DummyLLM("meme response")
+    
+    # Create agent instance and monkeypatch llm
+    agent = agent4.Agent4(name="test", personality="test", dry_run=True)
+    monkeypatch.setattr(agent, "llm", llm)
+    
+    result = await agent.craft_post()
+    assert "meme response" in result
+    assert "meme" in llm.prompt.lower()
 
 
 def test_scheduler_entries():

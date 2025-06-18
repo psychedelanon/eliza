@@ -1,5 +1,6 @@
 import asyncio
 import types
+import pytest
 
 from agents import social
 from agents.base import TwitterAgent
@@ -40,19 +41,25 @@ class DummyCounter:
         return types.SimpleNamespace(inc=inc)
 
 
-def test_amplify_actions(monkeypatch):
-    bot = TwitterAgent(idx=4, name="Agent4", personality="GremlinGM", dry_run=True)
-    peer = TwitterAgent(idx=5, name="Agent5", personality="GremlinMeme", dry_run=True)
+@pytest.mark.asyncio
+async def test_amplify_actions(monkeypatch):
+    bot = TwitterAgent(name="Agent4", personality="GremlinGM", dry_run=True)
+    peer = TwitterAgent(name="Agent5", personality="GremlinMeme", dry_run=True)
     bot.client = DummyClient()
     peer.client = DummyClient()
+    peer.last_post_id = 123  # Set a last_post_id so amplify has something to work with
 
     monkeypatch.setattr(social, "AMPLIFICATIONS_TOTAL", DummyCounter())
-    monkeypatch.setattr(social.llm, "complete", lambda *_a, **_k: "ok")
+    monkeypatch.setattr(bot, "llm", lambda *_a, **_k: "ok")
     monkeypatch.setattr(social.random, "sample", lambda seq, k: seq[:k])
     monkeypatch.setattr(social.random, "choice", lambda seq: seq[0])
-    monkeypatch.setattr(social.asyncio, "sleep", lambda *_a, **_k: None)
+    
+    # Mock asyncio.sleep to return a proper coroutine
+    async def mock_sleep(secs):
+        pass
+    monkeypatch.setattr(social.asyncio, "sleep", mock_sleep)
 
-    asyncio.run(social.amplify(bot, [peer], dry=False))
+    await social.amplify(bot, [peer], dry=False)
 
     assert bot.client.liked or bot.client.retweeted or bot.client.quoted or bot.client.replied
 

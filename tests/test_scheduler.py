@@ -9,6 +9,7 @@ import scheduler.tasks as tasks
 
 class DummyRuntime:
     def __init__(self, name="TestAgent"):
+        self.schedule_cron = "*/5 * * * *"
         self.agent = types.SimpleNamespace(name=name)
     async def periodic_post(self):
         pass

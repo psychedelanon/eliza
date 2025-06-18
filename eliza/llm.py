@@ -72,7 +72,10 @@ def complete(
         # Fallback to OpenAI if Anthropic fails
         print("Warning: Anthropic provider not available, falling back to OpenAI")
         return complete(prompt, model=model, temperature=temperature, max_tokens=max_tokens, force_provider=Provider.OPENAI)
-    raise RuntimeError(f"Unhandled provider: {provider}")
+    else:
+        # Handle any other unsupported provider by falling back to OpenAI
+        print(f"Warning: Unsupported provider {provider}, falling back to OpenAI")
+        return complete(prompt, model=model, temperature=temperature, max_tokens=max_tokens, force_provider=Provider.OPENAI)
 
 
 async def complete_stream(

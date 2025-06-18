@@ -31,5 +31,8 @@ def test_openai_provider(monkeypatch):
 
 def test_anthropic_not_implemented(monkeypatch):
     monkeypatch.setenv("ELIZA_LLM_PROVIDER", "anthropic")
-    with pytest.raises(NotImplementedError):
-        llm.complete("hi")
+    monkeypatch.setitem(sys.modules, "openai", types.SimpleNamespace(OpenAI=lambda api_key=None: DummyClient()))
+    monkeypatch.setenv("OPENAI_API_KEY", "key")
+    # Should fall back to OpenAI instead of raising
+    result = llm.complete("hi")
+    assert result == "hi"

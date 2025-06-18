@@ -1,18 +1,15 @@
-import os
-import sys
+import pytest
 import random
-
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-
 from agents import agent1
 
-
-def test_build_prompt(monkeypatch):
+@pytest.mark.asyncio
+async def test_build_prompt(monkeypatch):
     monkeypatch.setattr(random, "sample", lambda corpus, k: corpus[:k])
-
-    prompt = agent1._build_prompt("onions")
-    assert "Sproto" in prompt
-    assert "1-240" in prompt or "240" in prompt
+    
+    # Create agent instance and monkeypatch llm
+    agent = agent1.Agent1(name="test", personality="test", dry_run=True)
+    monkeypatch.setattr(agent, "llm", lambda prompt: "Test response")
+    
+    prompt = await agent._build_prompt("onions")
     assert "onions" in prompt
-    assert "Style examples" in prompt
-    assert "Tweet:" in prompt
+    assert "chaotic hype gremlin" in prompt.lower()

@@ -30,7 +30,7 @@ REPLIES_POSTED = CounterWrapper("replies_posted_total", "Replies successfully po
 OPENAI_CALLS = CounterWrapper("openai_calls_total", "OpenAI API calls made")
 LLM_LATENCY = Histogram("llm_request_seconds", "LLM request latency in seconds")
 AMPLIFICATIONS_TOTAL = Counter("eliza_amplifications_total", "Boosts", ["agent", "action"])
-CROSS_ENGAGE_TOTAL = Counter("eliza_cross_engage_total", "cross-engage actions", ["agent", "action"])
+CROSS_ENGAGE_TOTAL = Counter("eliza_cross_engage_total", "cross-engage actions", ["agent", "action", "origin_agent"])
 CROSS_ENGAGE_LATENCY_SECONDS = Histogram("eliza_cross_engage_latency_seconds", "cross-engage latency (s)", ["agent", "action"])
 
 

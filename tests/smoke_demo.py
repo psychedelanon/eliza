@@ -23,10 +23,11 @@ def test_demo_smoke(monkeypatch, tmp_path, caplog):
     # Stub quickfire to return deterministic text
     stub_dir = tmp_path / "stubs" / "blacksmith_forge"
     stub_dir.mkdir(parents=True)
-    (stub_dir / "__init__.py").write_text("")
+    (stub_dir / "__init__.py").write_text("", encoding="utf-8")
     (stub_dir / "quickfire.py").write_text(
         "def create_post(p):\n    return 'demo'\n"
-        "def create_reply(p,o):\n    return 'demo'\n"
+        "def create_reply(p,o):\n    return 'demo'\n",
+        encoding="utf-8"
     )
     env["PYTHONPATH"] = f"{stub_dir.parent}:{env.get('PYTHONPATH','')}"
 

@@ -188,6 +188,68 @@ Run the coordinated hype agents in dry-run mode:
 python run.py --agent AgentLoreMaster,AgentHypeBeast,AgentCynical,AgentSage --dry-run
 ```
 
+## 🚀 Swarm Quality Boost
+
+The Eliza swarm now features **Swarm Quality Boost** - an enhanced system for generating high-signal, cross-amplifying content with smart engagement patterns.
+
+### Features
+
+- **Smart Post Generation**: Persona-specific content with proper hashtags, emojis, and mentions
+- **Quality Validation**: Ensures posts meet length, content, and engagement standards
+- **Adaptive Cross-Engagement**: Persona-specific engagement patterns (likes, replies, quotes)
+- **Event-Driven Content**: Hot token events trigger topical posts
+- **Quality Gates**: Automatic validation and scoring of all posts
+
+### Quick Test
+
+Test the enhanced swarm with high-quality content generation:
+
+```bash
+# Run the enhanced swarm in demo mode
+python run.py --swarm --dry-run --demo
+
+# This will generate:
+# - LoreMaster: Mythic lore posts with dramatic tone
+# - MemeLord: Viral meme content with humor
+# - AlphaScry: Market insights and trading wisdom
+# - GremlinGM: Chaotic gaming hype content
+# - SwarmCoordinator: Hot token event generation
+```
+
+### Quality Validation
+
+All posts are automatically validated for:
+
+- Length (140-240 characters)
+- Required hashtags (#HarryPotterObamaSonic10Inu, $BITCOIN)
+- Emoji presence
+- Spam detection
+- Cross-engagement mentions
+
+### Persona Engagement Styles
+
+Each persona has unique engagement patterns:
+
+- **LoreMaster**: 20% quote, 50% reply, 30% like
+- **MemeLord**: 60% reply, 40% like
+- **AlphaScry**: 70% reply, 30% quote
+- **GremlinGM**: 80% reply, 20% like
+
+### Testing
+
+Run comprehensive tests for the quality system:
+
+```bash
+# Test quality validation
+python -m pytest tests/test_quality.py -v
+
+# Test cross-engagement patterns
+python -m pytest tests/test_cross_style.py -v
+
+# Quick functionality test
+python simple_test.py
+```
+
 ---
 
 ### Automatically Start Eliza

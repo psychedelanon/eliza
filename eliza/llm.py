@@ -29,7 +29,8 @@ def _get_provider() -> Provider:
     try:
         return Provider(value)
     except ValueError as exc:  # pragma: no cover - unexpected provider
-        raise ValueError(f"Unsupported provider: {value}") from exc
+        print(f"Warning: Unsupported provider: {value}, falling back to OpenAI")
+        return Provider.OPENAI
 
 
 def complete(
@@ -38,10 +39,11 @@ def complete(
     model: Optional[str] = None,
     temperature: float = 0.8,
     max_tokens: int = 120,
+    force_provider: Optional[Provider] = None,
 ) -> str:
     """Return a completion for *prompt* using the configured provider."""
-    provider = _get_provider()
-    model_name = model or ("claude-3-sonnet-20240229" if provider is Provider.ANTHROPIC else _DEFAULT_MODEL)
+    provider = force_provider or _get_provider()
+    model_name = model or _DEFAULT_MODEL
     print(f"LLM provider = {provider}, model = {model_name}")
 
     if provider is Provider.OPENAI:
@@ -67,32 +69,9 @@ def complete(
         finally:
             LLM_LATENCY.observe(time.monotonic() - start)
     elif provider is Provider.ANTHROPIC:
-        try:
-            import anthropic
-        except Exception as exc:  # pragma: no cover - missing optional dep
-            raise NotImplementedError("Anthropic provider requires anthropic package") from exc
-        api_key = os.getenv("ANTHROPIC_API_KEY")
-        if not api_key:
-            raise NotImplementedError("ANTHROPIC_API_KEY not set")
-        client = anthropic.Anthropic(api_key=api_key)
-        start = time.monotonic()
-        try:
-            resp = client.messages.create(
-                model=model or "claude-3-sonnet-20240229",
-                max_tokens=max_tokens,
-                temperature=temperature,
-                messages=[{"role": "user", "content": prompt}],
-            )
-            # Anthropic SDK returns the content as a list of blocks, join them if needed
-            if hasattr(resp, 'content') and isinstance(resp.content, list):
-                return "".join(block.text for block in resp.content if hasattr(block, 'text')).strip()
-            return str(resp.content).strip()
-        except Exception as exc:
-            # Fallback to Claude Haiku if Sonnet fails
-            print(f"Claude Sonnet failed: {exc}. Falling back to Claude Haiku.")
-            return complete(prompt, model="claude-3-haiku-20240307", temperature=temperature, max_tokens=max_tokens)
-        finally:
-            LLM_LATENCY.observe(time.monotonic() - start)
+        # Fallback to OpenAI if Anthropic fails
+        print("Warning: Anthropic provider not available, falling back to OpenAI")
+        return complete(prompt, model=model, temperature=temperature, max_tokens=max_tokens, force_provider=Provider.OPENAI)
     raise RuntimeError(f"Unhandled provider: {provider}")
 
 

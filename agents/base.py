@@ -5,7 +5,7 @@ import hashlib
 from pathlib import Path
 from datetime import datetime, timedelta
 from dataclasses import dataclass, field
-from typing import Optional
+from typing import Optional, Union, Tuple
 import time
 
 import sys
@@ -41,18 +41,32 @@ _db.commit()
 
 
 def _passes_moderation(text: str) -> bool:
-    if openai_client:
-        try:
-            resp = openai_client.moderations.create(input=text)
-            if resp.results[0].flagged:
-                return False
-        except Exception as exc:
-            log.warning("openai moderation failed: %s", exc)
+    """Check if text passes moderation."""
+    # Safety guard against tuple input
+    if isinstance(text, tuple):
+        text = text[0]
+        
+    if not text:
+        return False
     lower = text.lower()
-    for w in BANNED_WORDS:
-        if w in lower:
-            return False
-    return True
+    if any(word in lower for word in BANNED_WORDS):
+        return False
+    try:
+        import openai
+    except Exception as exc:  # pragma: no cover - import error
+        print(f"openai moderation failed: {exc}")
+        return True
+    api_key = os.getenv("OPENAI_API_KEY")
+    if not api_key:
+        print("OPENAI_API_KEY not set")
+        return True
+    client = openai.OpenAI(api_key=api_key)
+    try:
+        resp = client.moderations.create(input=text)
+        return not any(category for category in resp.results[0].categories.__dict__.values() if category)
+    except Exception as exc:  # pragma: no cover - moderation error
+        print(f"openai moderation failed: {exc}")
+        return True
 
 
 def _tweet_hash(text: str) -> str:
@@ -183,6 +197,7 @@ class TwitterAgent:
         reraise=True,
     )
     def post(self, post: tuple[str, Optional[str]], *, dry_run: Optional[bool] = None) -> int:
+        """Post a tweet."""
         text, img_path = post
         if dry_run is None:
             dry_run = self.dry_run
@@ -240,44 +255,44 @@ class TwitterAgent:
         stop=stop_after_attempt(5),
         reraise=True,
     )
-    def reply(
-        self,
-        tweet_id: int,
-        text: Optional[str] = None,
-        original_text: Optional[str] = None,
-        *,
-        dry_run: Optional[bool] = None,
-    ) -> int:
-        if text is None:
-            text = self.craft_reply(original_text or "")
+    def reply(self, tweet_id: str, text: str, *, dry_run: Optional[bool] = None) -> Optional[str]:
+        """Reply to a tweet."""
         if dry_run is None:
             dry_run = self.dry_run
-        if dry_run:
-            log.info(
-                "%s would reply to %s: %s",
-                self.name,
-                tweet_id,
-                text,
-                extra={"agent": self.name, "event": "dry_run"},
-            )
-            return int(time.time() * 1000)
         if not _passes_moderation(text):
+            reason = "moderation"
+            log.debug("%s skip=%s text=%r", self.name, reason, text, extra={"agent": self.name, "event": "skip", "reason": reason})
             log.warning(
-                "%s reply blocked by moderation",
+                "%s blocked by moderation",
                 self.name,
                 extra={"agent": self.name, "event": "moderation_blocked"},
             )
-            return -1
-        resp = self.client.create_tweet(text=text, in_reply_to_tweet_id=tweet_id)
-        reply_id = resp.data["id"]
-        REPLIES_POSTED.inc()
-        log.info(
-            "%s replied with %s",
-            self.name,
-            reply_id,
-            extra={"agent": self.name, "event": "reply"},
-        )
-        return reply_id
+            return None
+        if dry_run:
+            log.info(
+                "%s would reply: %s",
+                self.name,
+                text,
+                extra={"agent": self.name, "event": "replied", "dry": True},
+            )
+            return None
+        try:
+            resp = self.client.create_tweet(text=text, in_reply_to_tweet_id=tweet_id)
+            log.info(
+                "%s replied to tweet %s",
+                self.name,
+                tweet_id,
+                extra={"agent": self.name, "event": "replied", "dry": False},
+            )
+            return resp.data["id"]
+        except Exception as exc:
+            log.error(
+                "%s reply failed: %s",
+                self.name,
+                exc,
+                extra={"agent": self.name, "event": "error", "error": str(exc)},
+            )
+            raise
 
     async def check_mentions(self, since_id: Optional[int] = None) -> int:
         if self.dry_run:

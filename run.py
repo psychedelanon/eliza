@@ -100,16 +100,17 @@ def init_agents(configs: dict, dry_run: bool = False):
                 log.info("%s skipped - no creds", name)
                 continue
         
-        # Use Agent2 class for agent2, otherwise use base TwitterAgent
-        agent_class = Agent2 if name == "Agent2" else TwitterAgent
-        agents.append(
-            agent_class(
-                idx=idx,
-                name=name,
-                personality=cfg.get("persona", ""),
-                dry_run=dry_run,
-            )
-        )
+        # Use custom agent classes when available
+        if name == "Agent1":
+            from agents.agent1 import Agent1
+            agent = Agent1(idx=idx, name=name, personality=cfg.get("persona", ""), dry_run=dry_run)
+        elif name == "Agent2":
+            from agents.agent2 import Agent2
+            agent = Agent2(idx=idx, name=name, personality=cfg.get("persona", ""), dry_run=dry_run)
+        else:
+            agent = TwitterAgent(idx=idx, name=name, personality=cfg.get("persona", ""), dry_run=dry_run)
+        
+        agents.append(agent)
     return agents
 
 

@@ -69,11 +69,11 @@ def complete(
     elif provider is Provider.ANTHROPIC:
         try:
             import anthropic
-        except Exception as exc:
-            raise RuntimeError("anthropic package required for ANTHROPIC provider") from exc
+        except Exception as exc:  # pragma: no cover - missing optional dep
+            raise NotImplementedError("Anthropic provider requires anthropic package") from exc
         api_key = os.getenv("ANTHROPIC_API_KEY")
         if not api_key:
-            raise RuntimeError("ANTHROPIC_API_KEY not set")
+            raise NotImplementedError("ANTHROPIC_API_KEY not set")
         client = anthropic.Anthropic(api_key=api_key)
         start = time.monotonic()
         try:

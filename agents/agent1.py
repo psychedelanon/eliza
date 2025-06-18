@@ -42,6 +42,19 @@ BONUS_TAG = "#HarryPotterObamaSonic10Inu"
 TICKER = "$BITCOIN"
 
 
+def _build_prompt(topic: str) -> str:
+    """Return a prompt for generating a tweet."""
+
+    examples = "\n".join(FEWSHOT_ASSISTANT)
+    return (
+        "Sproto breakfast prompt (1-240 chars)\n"
+        "Style examples:\n"
+        f"{examples}\n"
+        f"User topic: {topic}\n"
+        "Tweet:"
+    )
+
+
 def _generate_tweet() -> str:
     """Generate a tweet using the LLM."""
     prompt = f"{SYSTEM_PROMPT}\n\n{FEWSHOT_ASSISTANT}\n\nUser: Generate a tweet."

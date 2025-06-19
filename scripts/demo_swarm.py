@@ -18,12 +18,29 @@ from typing import Dict, Any, Optional
 from dataclasses import dataclass, field
 
 # Add project root to path
-sys.path.insert(0, str(Path(__file__).parent.parent))
+project_root = Path(__file__).parent.parent
+sys.path.insert(0, str(project_root))
 
-from agents.EnhancedSwarmCoordinator import EnhancedSwarmCoordinator
-from agents.EventSystem import EventSystem
-from eliza.config.schema import validate_all_personas
-from eliza.context.store import ContextStore
+# Test imports with better error handling
+try:
+    from agents.EventSystem import EventSystem
+    from agents.EnhancedSwarmCoordinator import EnhancedSwarmCoordinator
+    from eliza.config.schema import validate_all_personas
+    from eliza.context.store import ContextStore
+except ImportError as e:
+    print(f"❌ Import Error: {e}")
+    print(f"Project root: {project_root}")
+    print(f"Python path: {sys.path[:3]}")
+    
+    # Try alternative imports for development
+    try:
+        # Check if we can at least import basic modules
+        import agents
+        print(f"✅ agents module found at: {agents.__file__ if hasattr(agents, '__file__') else 'unknown'}")
+    except ImportError:
+        print("❌ Cannot import agents module at all")
+    
+    sys.exit(1)
 from rich.console import Console
 from rich.table import Table
 from rich.progress import Progress, TimeRemainingColumn, BarColumn, TextColumn

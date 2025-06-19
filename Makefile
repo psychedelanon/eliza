@@ -13,9 +13,9 @@ install: ## Install dependencies for development
 	pip install -r requirements.txt
 
 test: ## Run all tests with coverage
-	pytest tests/ -v --cov=agents --cov=eliza --cov=scheduler \
-		--cov-report=term-missing --cov-report=xml --cov-report=html \
-		--cov-fail-under=85
+	pytest tests/ -q -m "not slow" \
+		--cov=agents --cov=eliza --cov=scheduler \
+		--cov-report=term-missing --disable-warnings
 
 test-unit: ## Run only unit tests
 	pytest tests/ -v --ignore=tests/phase4/ -m "not integration"

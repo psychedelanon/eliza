@@ -1,0 +1,41 @@
+FROM python:3.11-slim
+
+# Set working directory
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    git \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy requirements first for better Docker layer caching
+COPY requirements.txt requirements-dev.txt ./
+
+# Install Python dependencies
+RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -r requirements-dev.txt
+
+# Create non-root user for security
+RUN useradd --create-home --shell /bin/bash eliza
+RUN chown -R eliza:eliza /app
+
+# Copy application code
+COPY --chown=eliza:eliza . .
+
+# Switch to non-root user
+USER eliza
+
+# Create necessary directories
+RUN mkdir -p /app/logs /app/data /app/backups
+
+# Set environment variables
+ENV PYTHONPATH=/app
+ENV PYTHONUNBUFFERED=1
+
+# Health check
+HEALTHCHECK --interval=60s --timeout=10s --start-period=300s --retries=3 \
+    CMD python -c "import requests; requests.get('http://localhost:8080/health', timeout=5)" || exit 1
+
+# Default command
+CMD ["python", "-m", "eliza.cli.run_swarm", "--live"] 

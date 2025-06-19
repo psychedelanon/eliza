@@ -1,0 +1,73 @@
+version: '3.9'
+
+services:
+  redis:
+    image: redis:7
+    restart: always
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  swarm:
+    image: ghcr.io/psychedelanon/eliza:0.4.0-alpha2
+    env_file:
+      - .env
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+    volumes:
+      - ./config:/app/config:ro
+      - ./logs:/app/logs
+    command: >
+      python -m eliza.cli.run_swarm
+          --live
+          --log-level=${SWARM_LOG_LEVEL:-INFO}
+    restart: unless-stopped
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'python',
+          '-c',
+          "import requests; requests.get('http://localhost:8080/health', timeout=5)",
+        ]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 300s # 5 min startup delay as mentioned in playbook
+
+  # Optional monitoring stack
+  loki:
+    image: grafana/loki:2.9.0
+    command: -config.file=/etc/loki/config-local.yaml
+    volumes:
+      - ./docker/loki-config.yaml:/etc/loki/config-local.yaml
+      - loki_data:/tmp/loki
+    ports:
+      - '3100:3100'
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:10.0.0
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./docker/grafana-datasources.yaml:/etc/grafana/provisioning/datasources/datasources.yaml
+    ports:
+      - '3000:3000'
+    restart: unless-stopped
+    depends_on:
+      - loki
+
+volumes:
+  redis_data:
+  loki_data:
+  grafana_data:

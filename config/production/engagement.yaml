@@ -1,0 +1,54 @@
+# Production Engagement Configuration
+# Staged rollout as per go-live playbook
+
+# Stage A: Beta - Price bot only
+agent2:
+  live_mode: true # HypeBeast (price bot) - first to go live
+  max_posts_per_hour: 2
+  reply_probability: 0.1
+  delay_range: [300, 600] # 5-10 minutes between posts
+  priority: 1
+
+# Stage B: Add one meme agent
+agent3:
+  live_mode: false # MemeLord - enable in Stage B (24h after Stage A)
+  max_posts_per_hour: 3
+  reply_probability: 0.15
+  delay_range: [240, 480] # 4-8 minutes between posts
+  priority: 2
+
+# Stage C: Progressive activation
+agent1:
+  live_mode: false # LoreMaster - enable in Stage C (48h after Stage A)
+  max_posts_per_hour: 2
+  reply_probability: 0.12
+  delay_range: [360, 720] # 6-12 minutes between posts
+  priority: 3
+
+agent4:
+  live_mode: false # AlphaScry - enable in Stage C (48h after Stage A)
+  max_posts_per_hour: 4
+  reply_probability: 0.2
+  delay_range: [180, 360] # 3-6 minutes between posts
+  priority: 4
+
+agent5:
+  live_mode: false # GremlinGM - enable in Stage D (72h after Stage A)
+  max_posts_per_hour: 3
+  reply_probability: 0.18
+  delay_range: [240, 480] # 4-8 minutes between posts
+  priority: 5
+
+# Global settings
+global:
+  startup_delay: 300 # 5 minutes safety buffer
+  max_concurrent_actions: 2
+  rate_limit_buffer: 0.8 # Stay 20% under Twitter limits
+  error_backoff_base: 60 # 1 minute base backoff
+  error_backoff_max: 3600 # 1 hour max backoff
+
+# Monitoring thresholds
+monitoring:
+  max_errors_per_hour: 10
+  max_rate_limit_hits_per_hour: 3
+  min_success_rate: 0.9

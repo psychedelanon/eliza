@@ -205,8 +205,69 @@ class EventRouter:
         
         return stats
 
+class EventSystem:
+    """
+    Main EventSystem class that provides a high-level interface to the event router.
+    This maintains compatibility with existing code while providing a clean API.
+    """
+    
+    def __init__(self):
+        self.router = EventRouter()
+        self._started = False
+    
+    def start(self) -> None:
+        """Start the event system."""
+        if not self._started:
+            self.router.start()
+            self._started = True
+            log.info("EventSystem started")
+    
+    def stop(self) -> None:
+        """Stop the event system."""
+        if self._started:
+            self.router.stop()
+            self._started = False
+            log.info("EventSystem stopped")
+    
+    async def emit_event(self, event_type: str, data: Dict[str, Any], 
+                        source_agent: str = "", target_agents: Optional[List[str]] = None) -> None:
+        """Emit an event with string-based event type (for compatibility)."""
+        # Convert string to EventType enum
+        try:
+            event_type_enum = EventType(event_type)
+        except ValueError:
+            log.warning(f"Unknown event type: {event_type}")
+            return
+        
+        event = Event(
+            type=event_type_enum,
+            source_agent=source_agent,
+            target_agents=target_agents or [],
+            data=data
+        )
+        await self.router.publish_event(event)
+    
+    async def publish_event(self, event: Event) -> None:
+        """Publish an event object directly."""
+        await self.router.publish_event(event)
+    
+    def register_handler(self, handler: EventHandler) -> None:
+        """Register an event handler."""
+        self.router.register_handler(handler)
+    
+    def unregister_handler(self, agent_name: str) -> None:
+        """Unregister an event handler."""
+        self.router.unregister_handler(agent_name)
+    
+    def get_stats(self) -> Dict[str, Any]:
+        """Get event system statistics."""
+        return self.router.get_stats()
+
 # Global event router instance
 event_router = EventRouter()
+
+# Global event system instance  
+event_system = EventSystem()
 
 # Convenience functions for backward compatibility
 async def publish_event(event_type: EventType, source_agent: str, data: Dict[str, Any], 

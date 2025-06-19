@@ -21,6 +21,8 @@ import openai
 from metrics import OPENAI_CALLS, CROSS_ENGAGE_TOTAL, CROSS_ENGAGE_LATENCY_SECONDS
 from agents.quality import validate, get_quality_score
 from agents.generator import get_engagement_weights
+from agents.RateLimiter import RateLimiter
+from agents.RetryQueue import retry_queue, ActionType
 
 import tweepy
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
@@ -29,6 +31,9 @@ import requests
 import random
 
 log = logging.getLogger("agent")
+
+# Global rate limiter instance
+rate_limiter = RateLimiter()
 
 OPENAI_KEY = os.getenv("OPENAI_API_KEY")
 openai_client = openai.OpenAI(api_key=OPENAI_KEY) if OPENAI_KEY else None
@@ -307,6 +312,26 @@ class TwitterAgent:
             )
             return -1
             
+        # Check rate limits before posting
+        if not self.dry_run and not rate_limiter.can_post(self.name):
+            agent_count, app_count = rate_limiter.get_counts(self.name)
+            log.warning(
+                "%s rate limited (agent: %d, app: %d)",
+                self.name,
+                agent_count,
+                app_count,
+                extra={"agent": self.name, "event": "rate_limited", "agent_count": agent_count, "app_count": app_count},
+            )
+            # Add to retry queue
+            retry_queue.add_failed_action(
+                ActionType.POST,
+                self.name,
+                self._post_actual,
+                text,
+                img
+            )
+            return -1
+            
         if self.dry_run:
             _dry_log(self, text, img)
             tweet_id = int(time.time() * 1000)
@@ -323,6 +348,31 @@ class TwitterAgent:
             )
             return tweet_id
             
+        try:
+            tweet_id = await self._post_actual(text, img)
+            # Register successful post with rate limiter
+            rate_limiter.register(self.name)
+            return tweet_id
+        except Exception as exc:
+            log.error(
+                "%s post failed: %s",
+                self.name,
+                exc,
+                extra={"agent": self.name, "event": "error", "error": str(exc)},
+            )
+            # Add to retry queue for rate limit errors
+            if "rate limit" in str(exc).lower() or "429" in str(exc):
+                retry_queue.add_failed_action(
+                    ActionType.POST,
+                    self.name,
+                    self._post_actual,
+                    text,
+                    img
+                )
+            raise
+
+    async def _post_actual(self, text: str, img: Optional[str]) -> int:
+        """Actual posting logic separated for retry queue."""
         try:
             if img and Path(img).exists():
                 media = self.api_v1.media_upload(img)
@@ -353,7 +403,7 @@ class TwitterAgent:
             return tweet_id
         except Exception as exc:
             log.error(
-                "%s post failed: %s",
+                "%s _post_actual failed: %s",
                 self.name,
                 exc,
                 extra={"agent": self.name, "event": "error", "error": str(exc)},

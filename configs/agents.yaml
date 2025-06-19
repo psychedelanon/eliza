@@ -1,6 +1,7 @@
 Agent1:
   persona: LoreMaster
   idx: 1
+  schedule_cron: '*/20 * * * *'
 Agent2:
   persona: price_analyst
   idx: 2

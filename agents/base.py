@@ -309,7 +309,19 @@ class TwitterAgent:
             
         if self.dry_run:
             _dry_log(self, text, img)
-            return int(time.time()*1000)
+            tweet_id = int(time.time() * 1000)
+            # broadcast so the swarm can see it
+            from eliza.shared_memory import get_shared_memory
+            get_shared_memory().publish_event(
+                {
+                    "type": "agent_post",
+                    "tweet_id": tweet_id,
+                    "agent": self.name,
+                    "text": text,
+                    "ts": time.time(),
+                }
+            )
+            return tweet_id
             
         try:
             if img and Path(img).exists():
@@ -326,7 +338,18 @@ class TwitterAgent:
                 extra={"agent": self.name, "event": "posted"},
             )
             _record_tweet(text)
-            self.last_post_id = tweet_id
+
+            # ─── broadcast for live mode as well ─────────────────────
+            from eliza.shared_memory import get_shared_memory
+            get_shared_memory().publish_event(
+                {
+                    "type": "agent_post",
+                    "tweet_id": tweet_id,
+                    "agent": self.name,
+                    "text": text,
+                    "ts": time.time(),
+                }
+            )
             return tweet_id
         except Exception as exc:
             log.error(
@@ -470,7 +493,37 @@ class TwitterAgent:
     async def run(self) -> None:
         """Default run loop for persona agents."""
         schedule_cron = getattr(self, "schedule_cron", None)
+        
+        # Add startup delay to prevent all agents posting simultaneously
+        startup_delay = random.uniform(10, 60)  # 10-60 second random delay
+        log.info(f"{self.name} starting up, will post in {startup_delay:.1f}s")
+        await asyncio.sleep(startup_delay)
+        
         while True:
+            if schedule_cron:
+                # Use proper cron logic to find next occurrence
+                now = datetime.now(timezone.utc)
+                cron_iter = croniter(schedule_cron, now)
+                
+                # Get the next occurrence (skip current if we're exactly at the time)
+                next_dt = cron_iter.get_next(datetime)
+                
+                # If the next occurrence is in the past (shouldn't happen), get the next one
+                if next_dt <= now:
+                    next_dt = cron_iter.get_next(datetime)
+                
+                sleep_s = (next_dt - now).total_seconds()
+                log.info(f"{self.name} next scheduled post in {sleep_s:.1f}s at {next_dt.strftime('%H:%M:%S')}")
+                await asyncio.sleep(sleep_s)
+                
+                # Now it's time to post
+                log.info(f"{self.name} executing scheduled post")
+            else:
+                # No cron schedule - use random interval (but longer for production)
+                interval = random.uniform(300, 600) if not self.dry_run else random.uniform(10, 20)
+                log.info(f"{self.name} no schedule, posting in {interval:.1f}s")
+                await asyncio.sleep(interval)
+            
             # Handle both sync and async craft_post methods
             if asyncio.iscoroutinefunction(self.craft_post):
                 text, img = await self.craft_post()
@@ -478,13 +531,6 @@ class TwitterAgent:
                 text, img = self.craft_post()
                 
             await self.post((text, img))
-            if schedule_cron:
-                now = datetime.now(timezone.utc)
-                next_dt = croniter(schedule_cron, now).get_next(datetime)
-                sleep_s = (next_dt - now).total_seconds()
-                await asyncio.sleep(sleep_s)
-            else:
-                await asyncio.sleep(random.uniform(60, 180))
 
     async def like(self, tweet_id: int, *, dry_run: Optional[bool] = None) -> None:
         dry = self.dry_run if dry_run is None else dry_run
@@ -553,24 +599,59 @@ class TwitterAgent:
 
     # ────────────────────────────────────────────────────────────────
     # New: generic reaction invoked by SwarmCoordinator
-    async def react_to_event(self, event):
-        tweet_id = event.get('tweet_id')
+    async def react_to_event(
+        self,
+        tweet_id: int,
+        delay: float = 0.0,
+        *,
+        full_stack: bool = False,
+    ) -> None:
+        """React to a tweet with like, reply, and optional retweet/bookmark/quote."""
+        if delay > 0:
+            await asyncio.sleep(delay)
+            
         if not tweet_id:
-            logging.info(f"{self.name} engagement skipped: No tweet_id in event.")
+            logging.info(f"{self.name} engagement skipped: No tweet_id provided.")
             return
-        if not self.api_key or not self.api_secret or not self.access_token or not self.access_secret:
+            
+        if not self.dry_run and (not self.api_key or not self.api_secret or not self.access_token or not self.access_secret):
             logging.info(f"{self.name} engagement skipped: Missing Twitter credentials.")
             return
-        logging.info(f"{self.name} engaging with tweet {tweet_id} (like + reply)...")
+            
+        logging.info(f"{self.name} engaging with tweet {tweet_id}...")
         
         try:
-            # Like the tweet
-            await self.like(tweet_id, dry_run=self.dry_run)
-            
-            # Generate and send reply
-            reply_text = self.make_price_reply(event)
+            import random
+            if not self.dry_run:
+                self.client.like(tweet_id)
+                # 30% chance retweet, 20% chance bookmark, 15% chance quote-tweet
+                if random.random() < 0.30:
+                    self.client.retweet(tweet_id)
+                if random.random() < 0.20:
+                    self.client.bookmark(tweet_id)
+                if random.random() < 0.15:
+                    reply_text = self.craft_reply("price post")[:200]
+                    self.client.create_tweet(
+                        text=reply_text, quote_tweet_id=tweet_id
+                    )
+            else:
+                log.info(
+                    "%s would like/retweet/bookmark/quote tweet %s",
+                    self.name,
+                    tweet_id,
+                    extra={"agent": self.name, "event": "engagement", "dry": True}
+                )
+                
+            reply_text = self.craft_reply("BTC vs $BITCOIN")[:180]
             await self.reply(tweet_id, reply_text, dry_run=self.dry_run)
             
+            if full_stack and not self.dry_run:
+                # chain-reply to *own* fresh post so followers see both threads
+                self.client.create_tweet(
+                    text="(thread 🧵) Markets never sleep…",
+                    in_reply_to_tweet_id=tweet_id,
+                )
+                
             logging.info(f"{self.name} engagement complete for tweet {tweet_id}.")
         except Exception as e:
             logging.error(f"{self.name} engagement failed: {e}")

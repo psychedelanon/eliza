@@ -29,7 +29,6 @@ def _get_provider() -> Provider:
     try:
         return Provider(value)
     except ValueError:  # pragma: no cover - unexpected provider
-        print(f"Warning: Unsupported provider: {value}, falling back to OpenAI")
         return Provider.OPENAI
 
 
@@ -44,7 +43,6 @@ def complete(
     """Return a completion for *prompt* using the configured provider."""
     provider = force_provider or _get_provider()
     model_name = model or _DEFAULT_MODEL
-    print(f"LLM provider = {provider}, model = {model_name}")
 
     if provider is Provider.OPENAI:
         try:
@@ -70,11 +68,9 @@ def complete(
             LLM_LATENCY.observe(time.monotonic() - start)
     elif provider is Provider.ANTHROPIC:
         # Fallback to OpenAI if Anthropic fails
-        print("Warning: Anthropic provider not available, falling back to OpenAI")
         return complete(prompt, model=model, temperature=temperature, max_tokens=max_tokens, force_provider=Provider.OPENAI)
     else:
         # Handle any other unsupported provider by falling back to OpenAI
-        print(f"Warning: Unsupported provider {provider}, falling back to OpenAI")
         return complete(prompt, model=model, temperature=temperature, max_tokens=max_tokens, force_provider=Provider.OPENAI)
 
 

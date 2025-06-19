@@ -28,4 +28,3 @@ if __name__ == "__main__":  # pragma: no cover - manual
     args = parser.parse_args()
     if args.once:
         ag = AgentCynical(idx=3, name="AgentCynical", personality="cynical", dry_run=True)
-        print(ag.create_post()[0])

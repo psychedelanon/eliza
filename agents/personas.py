@@ -104,7 +104,6 @@ class LoreMaster(TwitterAgent):
             tweet_id = event.get("tweet_id", 0)
             if tweet_id > 0:
                 await self.reply(tweet_id, reply_text, dry_run=self.dry_run)
-                print(f"LoreMaster would reply to price post: {reply_text}")
 
 
 class MemeLord(TwitterAgent):
@@ -135,7 +134,6 @@ class MemeLord(TwitterAgent):
             tweet_id = event.get("tweet_id", 0)
             if tweet_id > 0:
                 await self.reply(tweet_id, reply_text, dry_run=self.dry_run)
-                print(f"MemeLord would reply to price post: {reply_text}")
 
 
 class AlphaScry(TwitterAgent):
@@ -166,7 +164,6 @@ class AlphaScry(TwitterAgent):
             tweet_id = event.get("tweet_id", 0)
             if tweet_id > 0:
                 await self.reply(tweet_id, reply_text, dry_run=self.dry_run)
-                print(f"AlphaScry would reply to price post: {reply_text}")
 
 
 class GremlinGM(TwitterAgent):
@@ -197,4 +194,3 @@ class GremlinGM(TwitterAgent):
             tweet_id = event.get("tweet_id", 0)
             if tweet_id > 0:
                 await self.reply(tweet_id, reply_text, dry_run=self.dry_run)
-                print(f"GremlinGM would reply to price post: {reply_text}")

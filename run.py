@@ -11,6 +11,8 @@ import sys
 from pathlib import Path
 from typing import Any, Dict, List
 import importlib
+from eliza.shared_memory import get_shared_memory
+from agents.registry import LIVE_AGENTS
 
 from agents.base import TwitterAgent
 
@@ -24,7 +26,10 @@ class SafeJsonFormatter(logging.Formatter):
             record.event = None
         return super().format(record)
 
-load_dotenv()
+# Force explicit path to .env in project root
+dotenv_path = os.path.abspath(os.path.join(os.path.dirname(__file__), ".env"))
+from dotenv import load_dotenv
+load_dotenv(dotenv_path=dotenv_path, override=True)
 
 ROOT = Path(__file__).resolve().parent
 vendor_qf = ROOT / "vendor" / "blacksmith_forge" / "quickfire.py"
@@ -51,10 +56,15 @@ logging.config.dictConfig(config)
 
 # Silence noisy third-party libraries
 logging.getLogger("httpcore").setLevel(logging.INFO)
-logging.getLogger("httpx").setLevel(logging.INFO)
+logging.getLogger("httpx").setLevel(logging.WARNING)
 logging.getLogger("openai").setLevel(logging.INFO)
 logging.getLogger("matplotlib").setLevel(logging.WARNING)
 logging.getLogger("fontTools").setLevel(logging.WARNING)
+logging.getLogger("requests").setLevel(logging.WARNING)
+logging.getLogger("urllib3").setLevel(logging.WARNING)
+logging.getLogger("tweepy").setLevel(logging.WARNING)
+logging.getLogger("oauthlib").setLevel(logging.ERROR)
+logging.getLogger("requests_oauthlib").setLevel(logging.ERROR)
 
 # Now it's safe to emit the first log line
 log = logging.getLogger("runner")
@@ -70,7 +80,9 @@ AGENT_CLASS_MAP: dict[str, str] = {
     "MemeLord": "agents.personas:MemeLord",
     "AlphaScry": "agents.personas:AlphaScry",
     "GremlinGM": "agents.personas:GremlinGM",
+    "Agent1": "agents.agent1:Agent1",
     "Agent2": "agents.agent2:Agent2",
+    "Agent3": "agents.agent3:Agent3",
     "Agent4": "agents.agent4:Agent4",
     "SwarmCoordinator": "agents.swarm:SwarmCoordinator",
 }
@@ -91,23 +103,42 @@ def load_configs() -> Dict[str, Any]:
         return yaml.safe_load(f) or {}
 
 
-def init_agents(configs: Dict[str, Any], dry_run: bool = False) -> List[TwitterAgent]:
-    agents: List[TwitterAgent] = []
-    for idx, (name, cfg) in enumerate(configs.items(), 1):
+def init_agents(configs, dry_run=False):
+    agents = []
+    for name, cfg in configs.items():
+        idx = cfg.get("idx") or int(name.replace("Agent", ""))
+        
+        # SwarmCoordinator doesn't need Twitter credentials
+        if name == "SwarmCoordinator":
+            dotted = AGENT_CLASS_MAP.get(name)
+            if not dotted:
+                log.warning(f"{name} not in registry")
+                continue
+            module_path, cls_name = dotted.split(":")
+            cls = getattr(importlib.import_module(module_path), cls_name)
+            agent = cls(idx=idx, name=name, personality=cfg.get("persona", ""), dry_run=dry_run)
+            LIVE_AGENTS[name] = agent
+            log.info("Registered %s in LIVE_AGENTS", name)
+            agents.append(agent)
+            continue
+            
+        # For other agents, check credentials
+        if not dry_run and not _has_creds(idx):
+            log.info("%s skipped (missing creds)", name)
+            continue
+        if dry_run and not _has_creds(idx):
+            log.info("%s running in dry-run (missing creds)", name)
+            
         dotted = AGENT_CLASS_MAP.get(name)
         if not dotted:
-            print(f"{name} not in registry")
+            log.warning(f"{name} not in registry")
             continue
         module_path, cls_name = dotted.split(":")
         cls = getattr(importlib.import_module(module_path), cls_name)
-        agent_idx = cfg.get("idx", idx)
-        agent = cls(idx=agent_idx, name=name, personality=cfg.get("persona", ""), dry_run=dry_run)
-        # Only check credentials for TwitterAgent subclasses
-        if not dry_run and isinstance(agent, TwitterAgent):
-            creds = [agent.api_key, agent.api_secret, agent.access_token, agent.access_secret]
-            if not all(creds):
-                print(f"[WARN] Skipping {name} (idx={agent_idx}): missing credentials.")
-                continue
+        agent = cls(idx=idx, name=name, personality=cfg.get("persona", ""), dry_run=dry_run)
+        # register for SwarmCoordinator
+        LIVE_AGENTS[name] = agent
+        log.info("Registered %s in LIVE_AGENTS", name)
         if "schedule_cron" in cfg:
             setattr(agent, "schedule_cron", cfg["schedule_cron"])
         agents.append(agent)
@@ -138,6 +169,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--dry-run", action="store_true", help="skip API calls and operate without credentials")
     parser.add_argument("--demo", action="store_true", help="run demo post once per agent then exit")
     parser.add_argument("--agent", help="comma-separated agent names to run")
+    parser.add_argument("--swarm-reply", action="store_true", help="reply to Agent2's latest price post with dca/lol")
     return parser.parse_args()
 
 async def main() -> None:
@@ -161,46 +193,33 @@ async def main() -> None:
                     text, img = result
                 else:
                     text, img = result, None
-                if text:
-                    post_result = agent.post((text, img))
-                    if asyncio.iscoroutine(post_result):
-                        await post_result
-                    log.info(
-                        "demo_post",
-                        extra={
-                            "agent": agent.name,
-                            "event": "demo_post",
-                            "text": text,
-                        },
-                    )
+                _dry_log(agent, text, img)
             except Exception as exc:
                 print(f"Error posting with {agent.name}: {exc}")
         return
     if args.swarm:
+        log.info("Starting swarm mode...")
+        # Always add SwarmCoordinator if not present
+        if "SwarmCoordinator" not in configs:
+            configs["SwarmCoordinator"] = {"idx": 99, "persona": "SwarmCoordinator"}
         # Start broadcast loop for event distribution
         from eliza.shared_memory import start_broadcast_loop
         broadcast_task = start_broadcast_loop()
         
-        # Only include agents that have credentials or don't need them
-        agent_names = ["Agent2", "SwarmCoordinator", "LoreMaster"]
+        # Include all agents with credentials and SwarmCoordinator
+        agent_names = [k for k in configs.keys() if k.startswith("Agent")] + ["SwarmCoordinator"]
         filtered_configs = {k: v for k, v in configs.items() if k in agent_names}
+        log.info("Initializing agents: %s", list(filtered_configs.keys()))
         agents = init_agents(filtered_configs, dry_run=args.dry_run)
+        log.info("LIVE_AGENTS after init: %s", list(LIVE_AGENTS.keys()))
         
-        # Pass agents list to SwarmCoordinator for event dispatching
-        for agent in agents:
-            if agent.name == "SwarmCoordinator":
-                agent.agents = [a for a in agents if a.name in ["LoreMaster"]]
-        
-        for agent in agents:
-            print(f"{agent.name} running in {'dry run' if args.dry_run else 'live'} mode")
-        
+        # Start all agent run loops
         tasks = []
         for agent in agents:
-            if hasattr(agent, "run") and callable(agent.run):
+            if hasattr(agent, "run"):
+                log.info(f"Starting task for {agent.name}")
                 tasks.append(asyncio.create_task(agent.run()))
-        
-        # Add broadcast task to the mix
-        tasks.append(broadcast_task)
+        log.info(f"Starting {len(tasks)} tasks in swarm mode")
         
         await asyncio.gather(*tasks)
         return
@@ -232,8 +251,22 @@ async def main() -> None:
             except Exception as exc:
                 print(f"Error posting with {agent.name}: {exc}")
         return
+    if args.swarm_reply:
+        mem = get_shared_memory()
+        event = mem.get_latest_event()
+        if event and event.get("type") == "price_post" and event.get("agent") == "Agent2":
+            for agent in agents:
+                if hasattr(agent, 'react_to_event'):
+                    await agent.react_to_event(event)
+        else:
+            print("No Agent2 price_post event found.")
+        return
     tasks = [asyncio.create_task(agent.run()) for agent in agents]
     await asyncio.gather(*tasks)
+
+def _dry_log(agent, text, img):
+    preview = text.replace("\n", " ")[:120] + ("…" if len(text) > 120 else "")
+    print(f"[Dry‑Run] {agent.name} would post: {preview} (image={img or 'none'})")
 
 if __name__ == "__main__":
     import logging

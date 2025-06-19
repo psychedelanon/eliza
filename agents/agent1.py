@@ -1,6 +1,7 @@
 import random
 from agents.base import TwitterAgent
 from eliza import shared_memory, llm
+import inspect
 
 def get_token_info(prompt):
     """Get token information for a prompt (stubbed for now)."""
@@ -14,6 +15,12 @@ class Agent1(TwitterAgent):
         super().__init__(*args, **kwargs)
         # Dummy interfaces (can be overridden in tests)
         self.llm = llm.complete  # default LLM function or stub
+        if not inspect.iscoroutinefunction(self.llm):
+            # Wrap sync llm.complete in an async function
+            sync_llm = self.llm
+            async def async_llm(prompt, *a, **kw):
+                return sync_llm(prompt, *a, **kw)
+            self.llm = async_llm
         self.requests = None  # requests library (or stub)
         self.persona = "an overly excited, chaotic hype gremlin who hypes everything enthusiastically"
     
@@ -25,15 +32,10 @@ class Agent1(TwitterAgent):
         prompt += f"Current message: {message}"
         return prompt
     
-    async def craft_post(self, *args, **kwargs):
-        """Craft a new post using the agent's persona."""
-        context = await shared_memory.latest()
-        prompt = await self._build_prompt("Create an exciting post about crypto", context=context)
-        get_token_info(prompt)  # integrate token count check (stubbed for now)
-        response = await self.llm(prompt)   # asynchronous call to LLM
-        # Record the post in shared memory for other agents
-        await shared_memory.append_list("memory", f"Agent1: {response}")
-        return response
+    async def craft_post(self):
+        """Generate lore-style tweet; no price logic."""
+        text = self._generate_lore_tweet()
+        return text, None
     
     async def post(self, content=None):
         """Post a new message (possibly using latest context)."""
@@ -53,4 +55,12 @@ class Agent1(TwitterAgent):
         get_token_info(prompt)
         response = await self.llm(prompt)
         await shared_memory.append_list("memory", f"Agent1: {response}")
-        return response 
+        return response
+    
+    async def react_to_event(self, tweet_id: str, delay: float = 0.0) -> None:
+        """Use the base class implementation for consistent engagement."""
+        return await super().react_to_event(tweet_id, delay)
+
+    def _generate_lore_tweet(self):
+        """Generate a simple Sproto-style meme line."""
+        return "lol #HarryPotterObamaSonic10Inu" 

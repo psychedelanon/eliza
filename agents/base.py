@@ -26,6 +26,8 @@ import tweepy
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 import requests
 
+import random
+
 log = logging.getLogger("agent")
 
 OPENAI_KEY = os.getenv("OPENAI_API_KEY")
@@ -64,18 +66,18 @@ def _passes_moderation(text: str) -> bool:
     try:
         import openai
     except Exception as exc:  # pragma: no cover - import error
-        print(f"openai moderation failed: {exc}")
+        log.debug(f"openai moderation failed: {exc}")
         return True
     api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
-        print("OPENAI_API_KEY not set")
+        log.debug("OPENAI_API_KEY not set")
         return True
     client = openai.OpenAI(api_key=api_key)
     try:
         resp = client.moderations.create(input=text)
         return not any(category for category in resp.results[0].categories.__dict__.values() if category)
     except Exception as exc:  # pragma: no cover - moderation error
-        print(f"openai moderation failed: {exc}")
+        log.debug(f"openai moderation failed: {exc}")
         return True
 
 
@@ -117,13 +119,11 @@ class TwitterAgent:
             self.authenticate()
 
     def _load_creds_from_env(self) -> None:
-        if not self.api_key:
-            prefix = f"TWITTER_AGENT{self.idx}_"
-            self.api_key = os.getenv(prefix + "API_KEY")
-            self.api_secret = os.getenv(prefix + "API_SECRET")
-            self.access_token = os.getenv(prefix + "ACCESS_TOKEN")
-            self.access_secret = os.getenv(prefix + "ACCESS_SECRET")
-        print(f"[DEBUG] {self.name} idx={self.idx} api_key={self.api_key} api_secret={self.api_secret} access_token={self.access_token} access_secret={self.access_secret}")
+        prefix = f"TWITTER_AGENT{self.idx}_"
+        self.api_key = os.getenv(prefix + "API_KEY")
+        self.api_secret = os.getenv(prefix + "API_SECRET")
+        self.access_token = os.getenv(prefix + "ACCESS_TOKEN")
+        self.access_secret = os.getenv(prefix + "ACCESS_SECRET")
 
     def authenticate(self) -> None:
         if self.dry_run:
@@ -197,7 +197,11 @@ class TwitterAgent:
         return text, None
 
     def craft_reply(self, original_text: str) -> str:
-        return quickfire.create_reply(self.personality, original_text)
+        try:
+            return quickfire.create_reply(self.personality, original_text)
+        except Exception:
+            # very simple fallback
+            return f"🔥 {self.personality} here! $BITCOIN supremacy! 🔥"
 
     def _generate_reply(self, original_text: str) -> str:
         """Generate a reply to the original text."""
@@ -304,13 +308,8 @@ class TwitterAgent:
             return -1
             
         if self.dry_run:
-            log.info(
-                "%s would post: %s",
-                self.name,
-                text,
-                extra={"agent": self.name, "event": "posted", "dry": True},
-            )
-            return 123  # Return dummy ID for dry run
+            _dry_log(self, text, img)
+            return int(time.time()*1000)
             
         try:
             if img and Path(img).exists():
@@ -340,9 +339,6 @@ class TwitterAgent:
 
     async def _maybe_cross_engage(self) -> None:
         """Smart cross-engagement with other agent's tweets based on persona style."""
-        import random
-        from eliza.shared_memory import get_shared_memory
-        
         await asyncio.sleep(random.uniform(0, 30))
         
         # Get engagement weights for this persona
@@ -473,8 +469,6 @@ class TwitterAgent:
 
     async def run(self) -> None:
         """Default run loop for persona agents."""
-        import random
-        import asyncio
         schedule_cron = getattr(self, "schedule_cron", None)
         while True:
             # Handle both sync and async craft_post methods
@@ -557,9 +551,30 @@ class TwitterAgent:
                 )
         return new_since
 
-    async def react_to_event(self, event: dict) -> None:
-        """React to events (default noop, override in subclasses)."""
-        pass
+    # ────────────────────────────────────────────────────────────────
+    # New: generic reaction invoked by SwarmCoordinator
+    async def react_to_event(self, event):
+        tweet_id = event.get('tweet_id')
+        if not tweet_id:
+            logging.info(f"{self.name} engagement skipped: No tweet_id in event.")
+            return
+        if not self.api_key or not self.api_secret or not self.access_token or not self.access_secret:
+            logging.info(f"{self.name} engagement skipped: Missing Twitter credentials.")
+            return
+        logging.info(f"{self.name} engaging with tweet {tweet_id} (like + reply)...")
+        
+        try:
+            # Like the tweet
+            await self.like(tweet_id, dry_run=self.dry_run)
+            
+            # Generate and send reply
+            reply_text = self.make_price_reply(event)
+            await self.reply(tweet_id, reply_text, dry_run=self.dry_run)
+            
+            logging.info(f"{self.name} engagement complete for tweet {tweet_id}.")
+        except Exception as e:
+            logging.error(f"{self.name} engagement failed: {e}")
+            raise
 
     def make_price_reply(self, event: dict) -> str:
         """Generate a price reply based on event data."""
@@ -579,3 +594,6 @@ class TwitterAgent:
         # Default price reply template
         template = "The scrolls record a {diff:+.2f}% swing in the cosmic balance #HarryPotterObamaSonic10Inu"
         return template.format(diff=diff_pct)[:150]
+
+def _dry_log(agent, text, img):
+    pass

@@ -1,6 +1,7 @@
 import requests
 from agents.base import TwitterAgent
 from eliza import shared_memory, llm
+import inspect
 
 def get_token_info(prompt):
     """Get token information for a prompt (stubbed for now)."""
@@ -13,6 +14,11 @@ class Agent3(TwitterAgent):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.llm = llm.complete
+        if not inspect.iscoroutinefunction(self.llm):
+            sync_llm = self.llm
+            async def async_llm(prompt, *a, **kw):
+                return sync_llm(prompt, *a, **kw)
+            self.llm = async_llm
         self.requests = requests
         self.persona = "a wise lore-teller who speaks in rich, narrative descriptions"
     
@@ -30,7 +36,7 @@ class Agent3(TwitterAgent):
         get_token_info(prompt)
         response = await self.llm(prompt)
         await shared_memory.append_list("memory", f"Agent3: {response}")
-        return response
+        return response, None
     
     async def post(self, content=None):
         context = await shared_memory.latest()
@@ -46,4 +52,8 @@ class Agent3(TwitterAgent):
         get_token_info(prompt)
         response = await self.llm(prompt)
         await shared_memory.append_list("memory", f"Agent3: {response}")
-        return response 
+        return response
+    
+    async def react_to_event(self, tweet_id: str, delay: float = 0.0) -> None:
+        """Use the base class implementation for consistent engagement."""
+        return await super().react_to_event(tweet_id, delay) 

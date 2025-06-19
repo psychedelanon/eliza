@@ -103,12 +103,12 @@ async def broadcast_loop():
                         else:
                             callback(latest_event)
                     except Exception as e:
-                        print(f"Error in subscriber callback: {e}")
+                        pass
             
             await asyncio.sleep(0.1)  # Check every 100ms
             
         except Exception as e:
-            print(f"Error in broadcast loop: {e}")
+            pass
             await asyncio.sleep(1)
 
 def start_broadcast_loop():
@@ -158,7 +158,8 @@ class InProcSharedMemory:
 
     def get_latest_event(self) -> Optional[Dict[str, Any]]:
         with self._lock:
-            return self._events[-1] if self._events else None
+            latest = self._events[-1] if self._events else None
+            return latest
 
 def get_shared_memory():
     global _shared_mem

@@ -61,14 +61,12 @@ def validate(text: str, agent_name: str = None) -> Tuple[bool, List[str]]:
         filtered_indicators = [ind for ind in spam_indicators if ind not in alpha_allowed]
         for indicator in filtered_indicators:
             if indicator in text.upper():
-                print(f"DEBUG: AlphaScry spam trigger: '{indicator}' in text: {text}")
                 issues.append("Contains spam indicators")
                 break
     else:
         # For other agents, check all spam indicators
         for indicator in spam_indicators:
             if indicator in text.upper():
-                print(f"DEBUG: {agent_name} spam trigger: '{indicator}' in text: {text}")
                 issues.append("Contains spam indicators")
                 break
     
@@ -120,14 +118,12 @@ def validate_reply(text: str, agent_name: str = None) -> Tuple[bool, List[str]]:
         filtered_indicators = [ind for ind in spam_indicators if ind not in alpha_allowed]
         for indicator in filtered_indicators:
             if indicator in text.upper():
-                print(f"DEBUG: AlphaScry spam trigger: '{indicator}' in text: {text}")
                 issues.append("Contains spam indicators")
                 break
     else:
         # For other agents, check all spam indicators
         for indicator in spam_indicators:
             if indicator in text.upper():
-                print(f"DEBUG: {agent_name} spam trigger: '{indicator}' in text: {text}")
                 issues.append("Contains spam indicators")
                 break
     

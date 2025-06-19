@@ -1,29 +1,15 @@
-AgentLoreMaster:
-  persona: lore_master
-  schedule_cron: '*/17 * * * *'
-AgentHypeBeast:
-  persona: hype_beast
-  schedule_cron: '*/13 * * * *'
-AgentCynical:
-  persona: cynical_sniper
-  schedule_cron: '*/19 * * * *'
-AgentSage:
-  persona: sage
-  schedule_cron: '*/23 * * * *'
+Agent1:
+  persona: LoreMaster
+  idx: 1
 Agent2:
   persona: price_analyst
-  schedule_cron: '0 */6 * * *' # Every 6 hours
-LoreMaster:
-  persona: LoreMaster
-  schedule_cron: '*/30 * * * *'
-MemeLord:
+  idx: 2
+  schedule_cron: '0,30 * * * *'
+Agent3:
   persona: MemeLord
-  schedule_cron: '*/30 * * * *'
-AlphaScry:
+  idx: 3
+  schedule_cron: '*/45 * * * *'
+Agent4:
   persona: AlphaScry
-  schedule_cron: '*/30 * * * *'
-GremlinGM:
-  persona: GremlinGM
-  schedule_cron: '*/30 * * * *'
-SwarmCoordinator:
-  persona: SwarmCoordinator
+  idx: 4
+  schedule_cron: '*/60 * * * *'

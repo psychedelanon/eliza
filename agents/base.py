@@ -23,6 +23,7 @@ from agents.quality import validate, get_quality_score
 from agents.generator import get_engagement_weights
 from agents.RateLimiter import RateLimiter
 from agents.RetryQueue import retry_queue, ActionType
+from agents.EventSystem import EventType, EventPriority, Event, event_router, publish_event
 
 import tweepy
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
@@ -119,6 +120,7 @@ class TwitterAgent:
 
     def __post_init__(self) -> None:
         self._load_creds_from_env()
+        self._load_persona_template()
         # Only authenticate if all credentials are present
         if not self.dry_run and all([self.api_key, self.api_secret, self.access_token, self.access_secret]):
             self.authenticate()
@@ -129,6 +131,48 @@ class TwitterAgent:
         self.api_secret = os.getenv(prefix + "API_SECRET")
         self.access_token = os.getenv(prefix + "ACCESS_TOKEN")
         self.access_secret = os.getenv(prefix + "ACCESS_SECRET")
+
+    def _load_persona_template(self) -> None:
+        """Load persona template from YAML file."""
+        import yaml
+        from pathlib import Path
+        
+        # Try to find persona file based on agent name or idx
+        persona_file = None
+        persona_dir = Path(__file__).parent.parent / "persona"
+        
+        # Try different naming patterns
+        potential_files = [
+            persona_dir / f"{self.name.lower()}.yml",
+            persona_dir / f"agent{self.idx}.yml",
+            persona_dir / f"{self.name}.yml"
+        ]
+        
+        for file_path in potential_files:
+            if file_path.exists():
+                persona_file = file_path
+                break
+        
+        if persona_file:
+            try:
+                with open(persona_file, 'r', encoding='utf-8') as f:
+                    self.persona = yaml.safe_load(f)
+                log.info(
+                    f"{self.name} loaded persona template from {persona_file.name}",
+                    extra={"agent": self.name, "event": "persona_loaded", "file": str(persona_file)}
+                )
+            except Exception as e:
+                log.warning(
+                    f"{self.name} failed to load persona template: {e}",
+                    extra={"agent": self.name, "event": "persona_load_failed", "error": str(e)}
+                )
+                self.persona = None
+        else:
+            log.info(
+                f"{self.name} no persona template found, using defaults",
+                extra={"agent": self.name, "event": "persona_default"}
+            )
+            self.persona = None
 
     def authenticate(self) -> None:
         if self.dry_run:
@@ -352,6 +396,10 @@ class TwitterAgent:
             tweet_id = await self._post_actual(text, img)
             # Register successful post with rate limiter
             rate_limiter.register(self.name)
+            
+            # Publish event to the new event system
+            await self._publish_post_event(tweet_id, text, img)
+            
             return tweet_id
         except Exception as exc:
             log.error(
@@ -409,6 +457,84 @@ class TwitterAgent:
                 extra={"agent": self.name, "event": "error", "error": str(exc)},
             )
             raise
+
+    async def _publish_post_event(self, tweet_id: int, text: str, img: Optional[str]) -> None:
+        """Publish a post event to the event system."""
+        try:
+            # Determine event type based on agent and content
+            event_type = EventType.AGENT_POST
+            priority = EventPriority.NORMAL
+            
+            # Special handling for price posts (Agent2)
+            if self.name == "Agent2" and ("$BITCOIN" in text or "$HPOS10I" in text):
+                event_type = EventType.PRICE_POST
+                priority = EventPriority.HIGH
+                
+                # Extract price data if available
+                data = {
+                    "tweet_id": tweet_id,
+                    "text": text,
+                    "agent": self.name,
+                    "ts": time.time(),
+                    "btc": self._extract_btc_price(text),
+                    "hpo": self._extract_hpo_price(text)
+                }
+            else:
+                data = {
+                    "tweet_id": tweet_id,
+                    "text": text,
+                    "agent": self.name,
+                    "ts": time.time()
+                }
+            
+            # Publish to new event system
+            await publish_event(
+                event_type=event_type,
+                source_agent=self.name,
+                data=data,
+                priority=priority
+            )
+            
+            # Also publish to legacy shared memory for backward compatibility
+            from eliza.shared_memory import get_shared_memory
+            get_shared_memory().publish_event(data)
+            
+            log.info(
+                f"Published {event_type.value} event for {self.name}",
+                extra={
+                    "agent": self.name,
+                    "event": "event_published",
+                    "event_type": event_type.value,
+                    "tweet_id": tweet_id
+                }
+            )
+            
+        except Exception as e:
+            log.error(f"Failed to publish post event: {e}")
+
+    def _extract_btc_price(self, text: str) -> Optional[float]:
+        """Extract BTC price from text."""
+        try:
+            # Look for BTC price pattern
+            import re
+            btc_match = re.search(r'\$BITCOIN:\s*\$([0-9,]+\.?[0-9]*)', text)
+            if btc_match:
+                return float(btc_match.group(1).replace(',', ''))
+        except:
+            pass
+        return None
+
+    def _extract_hpo_price(self, text: str) -> Optional[float]:
+        """Extract HPO price from text."""
+        try:
+            # Look for HPO price pattern
+            import re
+            hpo_match = re.search(r'\$HPOS10I:\s*\$([0-9,]*\.?[0-9]*)', text)
+            if hpo_match:
+                return float(hpo_match.group(1).replace(',', ''))
+        except:
+            pass
+        return None
 
     async def _maybe_cross_engage(self) -> None:
         """Smart cross-engagement with other agent's tweets based on persona style."""

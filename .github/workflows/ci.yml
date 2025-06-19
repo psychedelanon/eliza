@@ -1,16 +1,147 @@
 name: CI
+
 on:
-  pull_request:
   push:
+    branches: [main, swarm-overhaul-ph3]
+  pull_request:
+    branches: [main]
+
 jobs:
-  lint-test:
+  test:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ['3.8', '3.9', '3.10', '3.11']
+
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-python@v4
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y redis-server
+
+      - name: Start Redis
+        run: |
+          sudo systemctl start redis-server
+          sudo systemctl enable redis-server
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .[test]
+          pip install -r requirements.txt
+
+      - name: Validate configuration schemas
+        run: |
+          python -m eliza.config.schema --persona-dir persona
+
+      - name: Run unit tests with coverage
+        run: |
+          pytest tests/ -v --cov=agents --cov=eliza --cov=scheduler \
+            --cov-report=term-missing --cov-report=xml --cov-fail-under=85
+
+      - name: Run Phase 4 integration tests
+        run: |
+          python -m pytest tests/phase4/ -v --tb=short
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          file: ./coverage.xml
+          flags: unittests
+          name: codecov-umbrella
+          fail_ci_if_error: true
+
+  lint:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v4
         with:
           python-version: '3.11'
-      - run: pip install -r requirements.txt
-      - run: pip install pytest ruff
-      - run: ruff agents scheduler run.py metrics.py tests
-      - run: pytest -q
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .[dev]
+
+      - name: Run Black
+        run: black --check --diff agents/ eliza/ scheduler/ tests/
+
+      - name: Run isort
+        run: isort --check-only --diff agents/ eliza/ scheduler/ tests/
+
+      - name: Run flake8
+        run: flake8 agents/ eliza/ scheduler/ tests/
+
+      - name: Run mypy
+        run: mypy agents/ eliza/ scheduler/
+
+  demo:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+          pip install -r requirements.txt
+
+      - name: Test swarm demo (dry run)
+        run: |
+          timeout 60s python scripts/demo_swarm.py --dry --duration 30 || [ $? -eq 124 ]
+
+      - name: Validate persona schemas
+        run: |
+          python -c "
+          from eliza.config.schema import validate_all_personas
+          from pathlib import Path
+          try:
+              personas = validate_all_personas(Path('persona'))
+              print(f'✅ Successfully validated {len(personas)} personas')
+              for name, persona in personas.items():
+                  print(f'  {name}: {persona.tone} (arg_chance: {persona.argument_chance})')
+          except Exception as e:
+              print(f'❌ Validation failed: {e}')
+              exit(1)
+          "
+
+  security:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install bandit
+        run: pip install bandit[toml]
+
+      - name: Run security scan
+        run: bandit -r agents/ eliza/ scheduler/ -f json -o bandit-report.json
+
+      - name: Upload security scan results
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: bandit-report
+          path: bandit-report.json

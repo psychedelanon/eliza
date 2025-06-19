@@ -1,0 +1,190 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "eliza-swarm"
+version = "0.4.0-rc1"
+description = "ElizaOS Multi-Agent Crypto-Twitter Swarm System"
+readme = "README.md"
+license = {text = "MIT"}
+authors = [
+    {name = "ElizaOS Contributors", email = "hello@elizaos.ai"}
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Internet :: WWW/HTTP :: Dynamic Content",
+    "Topic :: Communications :: Chat",
+]
+requires-python = ">=3.8"
+dependencies = [
+    "tweepy>=4.15,<5",
+    "APScheduler>=3.10,<4",
+    "python-dotenv>=1.0,<2",
+    "tenacity>=8.2,<9",
+    "pyyaml>=6.0",
+    "python-json-logger>=2.0",
+    "rich>=13",
+    "openai>=1.3",
+    "prometheus-client>=0.17",
+    "requests>=2.32",
+    "matplotlib>=3.9",
+    "beautifulsoup4>=4.12",
+    "croniter",
+    "redis",
+    "pydantic>=2.0,<3",
+]
+
+[project.optional-dependencies]
+test = [
+    "pytest>=7.0",
+    "pytest-asyncio",
+    "pytest-cov>=4.0,<5",
+    "coverage[toml]>=7.0,<8",
+    "fakeredis",
+]
+dev = [
+    "black",
+    "isort",
+    "flake8",
+    "mypy",
+    "pre-commit",
+]
+
+[project.urls]
+Homepage = "https://github.com/elizaos/eliza"
+Repository = "https://github.com/elizaos/eliza"
+Issues = "https://github.com/elizaos/eliza/issues"
+Documentation = "https://elizaos.github.io/eliza"
+
+[project.scripts]
+eliza-demo = "scripts.demo_swarm:main"
+
+[tool.pytest.ini_options]
+minversion = "7.0"
+addopts = [
+    "--strict-markers",
+    "--strict-config",
+    "--cov=agents",
+    "--cov=eliza",
+    "--cov=scheduler",
+    "--cov-report=term-missing",
+    "--cov-report=xml",
+    "--cov-report=html",
+    "--cov-fail-under=85",
+]
+testpaths = [
+    "tests",
+]
+python_files = [
+    "test_*.py",
+    "*_test.py",
+]
+python_classes = [
+    "Test*",
+]
+python_functions = [
+    "test_*",
+]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests as integration tests",
+    "unit: marks tests as unit tests",
+]
+asyncio_mode = "auto"
+
+[tool.coverage.run]
+source = ["agents", "eliza", "scheduler"]
+branch = true
+parallel = true
+
+[tool.coverage.paths]
+source = [
+    "agents/",
+    "eliza/",
+    "scheduler/",
+]
+
+[tool.coverage.report]
+precision = 2
+show_missing = true
+skip_covered = false
+sort = "Cover"
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if self\\.debug:",
+    "if settings\\.DEBUG",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if 0:",
+    "if __name__ == .__main__.:",
+    "class .*\\bProtocol\\):",
+    "@(abc\\.)?abstractmethod",
+]
+
+[tool.coverage.html]
+directory = "htmlcov"
+
+[tool.coverage.xml]
+output = "coverage.xml"
+
+[tool.black]
+line-length = 88
+target-version = ['py38', 'py39', 'py310', 'py311']
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+  # directories
+  \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | build
+  | dist
+)/
+'''
+
+[tool.isort]
+profile = "black"
+multi_line_output = 3
+line_length = 88
+known_first_party = ["agents", "eliza", "scheduler"]
+
+[tool.mypy]
+python_version = "3.8"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+warn_unreachable = true
+strict_equality = true
+
+[[tool.mypy.overrides]]
+module = [
+    "tweepy.*",
+    "APScheduler.*",
+    "tenacity.*",
+    "croniter.*",
+    "prometheus_client.*",
+    "matplotlib.*",
+    "beautifulsoup4.*",
+    "fakeredis.*",
+]
+ignore_missing_imports = true 

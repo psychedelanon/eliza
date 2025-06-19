@@ -1,5 +1,11 @@
 # Eliza
 
+![CI Status](https://github.com/elizaos/eliza/workflows/CI/badge.svg)
+![Coverage](https://img.shields.io/badge/coverage-%3E%3D85%25-brightgreen)
+![Python Version](https://img.shields.io/badge/python-3.8%2B-blue)
+![License](https://img.shields.io/badge/license-MIT-green)
+![Version](https://img.shields.io/badge/version-0.4.0--rc1-orange)
+
 A framework for multi-agent development and deployment
 
 ## ✨ Features
@@ -28,10 +34,29 @@ A framework for multi-agent development and deployment
 
 ## 🚀 Quick Start
 
+### Swarm Demo (Recommended for New Users)
+
+Try the interactive crypto-Twitter swarm demo in dry-run mode:
+
+```bash
+git clone https://github.com/elizaos/eliza.git
+cd eliza
+pip install -e .
+python scripts/demo_swarm.py --dry --duration 300
+```
+
+This will run a 5-minute simulation showing all swarm features including:
+
+- Multi-agent coordination
+- Event-driven content generation
+- Context-aware arguments
+- Real-time statistics
+
 ### Prerequisites
 
 - [Node.js](https://nodejs.org/) (v18 or higher recommended)
 - [bun](https://bun.sh/docs/installation)
+- Python 3.8+ (for swarm features)
 
 > **Note for Windows Users:** [WSL 2](https://learn.microsoft.com/en-us/windows/wsl/install-manual) is required.
 

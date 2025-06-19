@@ -143,37 +143,40 @@ class SwarmCoordinator:
         from agents.registry import LIVE_AGENTS
         mem = get_shared_memory()
         last_seen = 0
-        log.info("SwarmCoordinator listening for price_post events")
+        log.info("SwarmCoordinator listening for agent_post and price_post events")
         
         while True:
             try:
                 ev = mem.get_latest_event()
-                if ev and ev.get("type") == "price_post" and ev["ts"] > last_seen:
+                if (
+                    ev
+                    and ev["type"] in ("price_post", "agent_post")
+                    and ev["ts"] > last_seen
+                ):
                     last_seen = ev["ts"]
                     tweet_id = ev["tweet_id"]
-                    poster = ev["agent"]
-                    scheduled = []
+                    origin = ev["agent"]
+                    # dispatch to every OTHER agent
                     for ag_name, ag in LIVE_AGENTS.items():
-                        if ag_name == poster or ag_name == "SwarmCoordinator":
+                        if ag_name == origin:
                             continue
-                        delay = random.uniform(10, 30) if not getattr(ag, 'dry_run', False) else random.uniform(1, 2)
-                        log.info(f"Scheduling {ag_name} to engage in {delay:.1f}s")
-                        scheduled.append(ag_name)
-                        event = {
-                            "type": "price_post",
-                            "tweet_id": tweet_id,
-                            "agent": poster,
-                            "ts": ev["ts"]
-                        }
-                        asyncio.create_task(self._delayed_reaction(ag, event, delay))
-                    log.info(f"SwarmCoordinator scheduled: {', '.join(scheduled)}")
-                await asyncio.sleep(3)
+                        delay = random.uniform(5, 15)      # faster for demo
+                        log.info(
+                            "Scheduling %s to react to %s in %.1fs",
+                            ag_name,
+                            ev["type"],
+                            delay,
+                        )
+                        asyncio.create_task(
+                            ag.react_to_event(
+                                tweet_id,
+                                delay,
+                                full_stack=True if ev["type"] == "price_post" else False,
+                            )
+                        )
+                await asyncio.sleep(2)
             except Exception as exc:
                 log.warning(f"SwarmCoordinator error: {exc}")
-
-    async def react_to_event(self, tweet_id: str, delay: float = 0.0) -> None:
-        """SwarmCoordinator doesn't engage with tweets itself."""
-        pass
 
     def publish_engagement_event(self, tweet_id):
         logging.info(f"SwarmCoordinator publishing engagement event for tweet {tweet_id}")
@@ -182,3 +185,14 @@ class SwarmCoordinator:
     def schedule_agent_engagement(self, agent, tweet_id):
         logging.info(f"SwarmCoordinator scheduling {agent.name} to engage with tweet {tweet_id}")
         # ... existing code ...
+
+    async def react_to_event(self, tweet_id: int, delay: float = 0.0, *, full_stack: bool = False) -> None:
+        """SwarmCoordinator doesn't engage directly, just logs the event."""
+        if delay > 0:
+            await asyncio.sleep(delay)
+        log.info(
+            "SwarmCoordinator would engage with tweet %s (full_stack=%s)",
+            tweet_id,
+            full_stack,
+            extra={"agent": self.name, "event": "engagement_skipped", "dry": True}
+        )

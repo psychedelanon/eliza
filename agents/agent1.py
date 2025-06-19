@@ -2,6 +2,7 @@ import random
 from agents.base import TwitterAgent
 from eliza import shared_memory, llm
 import inspect
+from typing import Optional
 
 def get_token_info(prompt):
     """Get token information for a prompt (stubbed for now)."""
@@ -48,19 +49,16 @@ class Agent1(TwitterAgent):
         await shared_memory.append_list("memory", f"Agent1: {response}")
         return response
     
-    async def reply(self, message):
-        """Reply to a given message (from another agent or user)."""
-        context = await shared_memory.latest()
-        prompt = await self._build_prompt(message, context=context)
-        get_token_info(prompt)
-        response = await self.llm(prompt)
-        await shared_memory.append_list("memory", f"Agent1: {response}")
-        return response
+    async def reply(
+        self,
+        tweet_id: int,
+        text: str,
+        *,
+        dry_run: Optional[bool] = None,
+    ) -> int:
+        """Delegate to base but keep override for future persona flair."""
+        return await super().reply(tweet_id, text, dry_run=dry_run)
     
-    async def react_to_event(self, tweet_id: str, delay: float = 0.0) -> None:
-        """Use the base class implementation for consistent engagement."""
-        return await super().react_to_event(tweet_id, delay)
-
     def _generate_lore_tweet(self):
         """Generate a simple Sproto-style meme line."""
         return "lol #HarryPotterObamaSonic10Inu" 

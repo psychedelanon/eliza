@@ -20,28 +20,20 @@ class Agent2(TwitterAgent):
         """Override post to publish price_post event after successful post."""
         tweet_id = await super().post(content)
         
-        # Check if post was successful (tweet_id can be string or int)
-        if tweet_id and str(tweet_id) != "-1" and str(tweet_id) != "123":  # Successful post
-            # Extract price data from content
-            text = content[0] if isinstance(content, tuple) else content
-            
-            # Publish price_post event
-            try:
-                mem = get_shared_memory()
-                mem.publish_event({
-                    "type": "price_post",
-                    "tweet_id": tweet_id,
-                    "btc": self.last_prices.get("btc"),
-                    "hpo": self.last_prices.get("hpo"),
-                    "hpo_pct": self.last_prices.get("hpo_pct"),
-                    "agent": self.name,
-                    "ts": time.time(),
-                    "text": text
-                })
-            except Exception as e:
-                pass
+        # Publish price_post event for special handling
+        if tweet_id > 0 and hasattr(self, 'last_prices'):
+            get_shared_memory().publish_event({
+                "type": "price_post",
+                "tweet_id": tweet_id,
+                "agent": self.name,
+                "btc": self.last_prices.get("btc", 0),
+                "hpo": self.last_prices.get("hpo", 0),
+                "btc_pct": self.last_prices.get("btc_pct", 0),
+                "hpo_pct": self.last_prices.get("hpo_pct", 0),
+                "ts": time.time(),
+            })
         
-        return tweet_id 
+        return tweet_id
 
     async def _fetch_prices_async(self):
         """Fetch real BTC and $BITCOIN prices and 24h change from CoinGecko."""

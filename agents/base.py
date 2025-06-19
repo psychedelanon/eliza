@@ -24,6 +24,7 @@ from agents.generator import get_engagement_weights
 from agents.RateLimiter import RateLimiter
 from agents.RetryQueue import retry_queue, ActionType
 from agents.EventSystem import EventType, EventPriority, Event, event_router, publish_event
+from eliza.twitter.v2_client import TwitterClientV2
 
 import tweepy
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
@@ -121,9 +122,13 @@ class TwitterAgent:
     def __post_init__(self) -> None:
         self._load_creds_from_env()
         self._load_persona_template()
-        # Only authenticate if all credentials are present
+        # Initialize v2 client for free tier posting
         if not self.dry_run and all([self.api_key, self.api_secret, self.access_token, self.access_secret]):
             self.authenticate()
+            # Initialize v2 client for posting
+            self.twitter_v2 = TwitterClientV2(f"TWITTER_AGENT{self.idx}")
+        else:
+            self.twitter_v2 = None
 
     def _load_creds_from_env(self) -> None:
         prefix = f"TWITTER_AGENT{self.idx}_"
@@ -286,18 +291,16 @@ class TwitterAgent:
             return 456  # Return dummy ID for dry run
             
         try:
-            resp = self.client.create_tweet(
-                text=text,
-                in_reply_to_tweet_id=tweet_id,
-            )
-            tweet_id = resp.data["id"]
+            # Use v2 client for free tier compatibility
+            reply_tweet_id = self.twitter_v2.post_tweet(text, reply_to_id=str(tweet_id))
+            reply_tweet_id = int(reply_tweet_id)
             log.info(
                 "%s replied: %s",
                 self.name,
                 text,
                 extra={"agent": self.name, "event": "replied"},
             )
-            return tweet_id
+            return reply_tweet_id
         except Exception as exc:
             log.error(
                 "%s reply failed: %s",
@@ -401,34 +404,66 @@ class TwitterAgent:
             await self._publish_post_event(tweet_id, text, img)
             
             return tweet_id
+        except tweepy.errors.TooManyRequests as exc:
+            log.warning(
+                "⏳ %s 429 rate‑limit: adding to retry queue: %s",
+                self.name,
+                exc,
+                extra={"agent": self.name, "event": "rate_limited", "error": str(exc)},
+            )
+            # Add to retry queue for rate limit errors
+            retry_queue.add_failed_action(
+                ActionType.POST,
+                self.name,
+                self._post_actual,
+                text,
+                img
+            )
+            return -1  # Don't raise, just return failure
+        except tweepy.errors.Forbidden as exc:
+            log.error(
+                "🔒 %s 403 forbidden: write perms missing or app on free tier: %s",
+                self.name,
+                exc,
+                extra={"agent": self.name, "event": "forbidden", "error": str(exc)},
+            )
+            return -1  # Don't retry forbidden errors
+        except tweepy.errors.Unauthorized as exc:
+            log.error(
+                "🚫 %s 401 unauthorized: invalid credentials: %s",
+                self.name,
+                exc,
+                extra={"agent": self.name, "event": "unauthorized", "error": str(exc)},
+            )
+            return -1  # Don't retry auth errors
         except Exception as exc:
             log.error(
-                "%s post failed: %s",
+                "🐞 %s unexpected error: %s",
                 self.name,
                 exc,
                 extra={"agent": self.name, "event": "error", "error": str(exc)},
             )
-            # Add to retry queue for rate limit errors
-            if "rate limit" in str(exc).lower() or "429" in str(exc):
-                retry_queue.add_failed_action(
-                    ActionType.POST,
-                    self.name,
-                    self._post_actual,
-                    text,
-                    img
-                )
             raise
 
     async def _post_actual(self, text: str, img: Optional[str]) -> int:
         """Actual posting logic separated for retry queue."""
         try:
+            # Use v2 client for free tier compatibility
             if img and Path(img).exists():
-                media = self.api_v1.media_upload(img)
-                media_id = media.media_id
-                resp = self.client.create_tweet(text=text, media_ids=[media_id])
+                # Media upload not supported on free tier - log and post without media
+                log.warning(
+                    "%s media upload skipped (free tier limitation): %s",
+                    self.name,
+                    img,
+                    extra={"agent": self.name, "event": "media_skipped", "path": img},
+                )
+                tweet_id = self.twitter_v2.post_tweet(text)
             else:
-                resp = self.client.create_tweet(text=text)
-            tweet_id = resp.data["id"]
+                tweet_id = self.twitter_v2.post_tweet(text)
+                
+            # Convert to int for compatibility
+            tweet_id = int(tweet_id)
+            
             log.info(
                 "%s posted: %s",
                 self.name,
@@ -449,9 +484,34 @@ class TwitterAgent:
                 }
             )
             return tweet_id
+        except tweepy.errors.TooManyRequests as e:
+            log.warning(
+                "⏳ %s 429 rate‑limit: sleeping 15 min: %s",
+                self.name,
+                e,
+                extra={"agent": self.name, "event": "rate_limited", "error": str(e)},
+            )
+            raise
+        except tweepy.errors.Forbidden as e:
+            log.error(
+                "🔒 %s 403 forbidden: write perms missing or tweet dup: %s",
+                self.name,
+                e,
+                extra={"agent": self.name, "event": "forbidden", "error": str(e)},
+            )
+            # Don't sleep so other agents keep running
+            raise
+        except tweepy.errors.Unauthorized as e:
+            log.error(
+                "🚫 %s 401 unauthorized: invalid credentials: %s",
+                self.name,
+                e,
+                extra={"agent": self.name, "event": "unauthorized", "error": str(e)},
+            )
+            raise
         except Exception as exc:
             log.error(
-                "%s _post_actual failed: %s",
+                "🐞 %s unexpected tweepy error: %s",
                 self.name,
                 exc,
                 extra={"agent": self.name, "event": "error", "error": str(exc)},
@@ -714,7 +774,8 @@ class TwitterAgent:
             log.info("%s would like %s", self.name, tweet_id, extra={"agent": self.name, "event": "liked", "dry": True})
             return
         try:
-            self.client.like(tweet_id)
+            # Use v2 client for free tier compatibility
+            self.twitter_v2.like_tweet(str(tweet_id))
             log.info("%s liked %s", self.name, tweet_id, extra={"agent": self.name, "event": "liked"})
         except Exception as exc:
             log.warning("%s like failed: %s", self.name, exc, extra={"agent": self.name, "event": "error"})
@@ -799,17 +860,14 @@ class TwitterAgent:
         try:
             import random
             if not self.dry_run:
-                self.client.like(tweet_id)
-                # 30% chance retweet, 20% chance bookmark, 15% chance quote-tweet
+                # Use v2 client for free tier compatibility
+                self.twitter_v2.like_tweet(str(tweet_id))
+                # 30% chance retweet, 15% chance quote-tweet (bookmark needs basic tier)
                 if random.random() < 0.30:
-                    self.client.retweet(tweet_id)
-                if random.random() < 0.20:
-                    self.client.bookmark(tweet_id)
+                    self.twitter_v2.retweet(str(tweet_id))
                 if random.random() < 0.15:
                     reply_text = self.craft_reply("price post")[:200]
-                    self.client.create_tweet(
-                        text=reply_text, quote_tweet_id=tweet_id
-                    )
+                    self.twitter_v2.post_tweet(reply_text, reply_to_id=None)  # Quote not supported on free tier
             else:
                 log.info(
                     "%s would like/retweet/bookmark/quote tweet %s",

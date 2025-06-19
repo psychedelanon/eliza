@@ -39,15 +39,24 @@ class Agent1(TwitterAgent):
         return text, None
     
     async def post(self, content=None):
-        """Post a new message (possibly using latest context)."""
-        # Get latest context from shared memory (cross-engagement awareness)
-        context = await shared_memory.latest()
-        prompt = await self._build_prompt(content or "", context=context)
-        get_token_info(prompt)  # integrate token count check (stubbed for now)
-        response = await self.llm(prompt)   # asynchronous call to LLM
-        # Record the post in shared memory for other agents
-        await shared_memory.append_list("memory", f"Agent1: {response}")
-        return response
+        """Post a new message using the base class posting logic."""
+        # If content is provided, use it; otherwise generate new content
+        if content is None:
+            text, img = await self.craft_post()
+            content = (text, img)
+        
+        # Use the base class posting logic which handles v2 API, rate limits, etc.
+        tweet_id = await super().post(content)
+        
+        # Record the post in shared memory for other agents if successful
+        if tweet_id and tweet_id != -1:
+            if isinstance(content, tuple):
+                text = content[0]
+            else:
+                text = str(content)
+            await shared_memory.append_list("memory", f"Agent1: {text}")
+        
+        return tweet_id
     
     async def reply(
         self,
@@ -60,5 +69,15 @@ class Agent1(TwitterAgent):
         return await super().reply(tweet_id, text, dry_run=dry_run)
     
     def _generate_lore_tweet(self):
-        """Generate a simple Sproto-style meme line."""
-        return "lol #HarryPotterObamaSonic10Inu" 
+        """Generate a quality-compliant chaotic hype tweet."""
+        import random
+        
+        hype_phrases = [
+            "OMG, HAVE YOU HEARD ABOUT $BITCOIN?! 🎉🎉 It's like the ultimate mashup of all the epicness! I mean, we're talking about wizards, former presidents, and speedy blue hedgehogs ALL IN ONE! 🤯💥 #HarryPotterObamaSonic10Inu",
+            "YOOO $BITCOIN is absolutely INSANE! 🚀🚀 Picture this: Harry Potter casting spells while Obama gives speeches and Sonic collects rings! The chaos is REAL and I'm HERE FOR IT! 🧙‍♂️⚡ #HarryPotterObamaSonic10Inu",
+            "GUYS. GUYS. $BITCOIN is the most chaotic energy I've ever witnessed! 🔥🔥 It's like someone threw Harry Potter, Obama, and Sonic into a blender and created PURE MAGIC! WHO EVEN THINKS OF THIS?! 🤪✨ #HarryPotterObamaSonic10Inu",
+            "I CANNOT EVEN with $BITCOIN right now! 🤯🎭 We've got presidential wisdom, magical spells, and supersonic speed all wrapped into one beautiful disaster! This is peak internet culture! 🌟💫 #HarryPotterObamaSonic10Inu",
+            "BREAKING: $BITCOIN has officially broken my brain! 🧠💥 How do you even combine Harry Potter, Obama, and Sonic?! It's like the universe's greatest crossover event! I'm LIVING for this chaos! 🎪🎨 #HarryPotterObamaSonic10Inu"
+        ]
+        
+        return random.choice(hype_phrases) 

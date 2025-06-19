@@ -9,24 +9,24 @@ agent2:
   delay_range: [300, 600] # 5-10 minutes between posts
   priority: 1
 
-# Stage B: Add one meme agent
+# Stage B: Add one meme agent - NOW ACTIVE
 agent3:
-  live_mode: false # MemeLord - enable in Stage B (24h after Stage A)
+  live_mode: true # MemeLord - ENABLED for Anthropic API testing
   max_posts_per_hour: 3
   reply_probability: 0.15
   delay_range: [240, 480] # 4-8 minutes between posts
   priority: 2
 
-# Stage C: Progressive activation
+# Stage C: Progressive activation - NOW ACTIVE
 agent1:
-  live_mode: false # LoreMaster - enable in Stage C (48h after Stage A)
+  live_mode: true # LoreMaster - ENABLED for Anthropic API testing
   max_posts_per_hour: 2
   reply_probability: 0.12
   delay_range: [360, 720] # 6-12 minutes between posts
   priority: 3
 
 agent4:
-  live_mode: false # AlphaScry - enable in Stage C (48h after Stage A)
+  live_mode: true # AlphaScry - ENABLED for Anthropic API testing
   max_posts_per_hour: 4
   reply_probability: 0.2
   delay_range: [180, 360] # 3-6 minutes between posts

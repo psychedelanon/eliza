@@ -32,20 +32,37 @@ class Agent3(TwitterAgent):
     
     async def craft_post(self, *args, **kwargs):
         """Craft a new post using the agent's persona."""
-        context = await shared_memory.latest()
-        prompt = await self._build_prompt("Create a lore-rich post about crypto", context=context)
-        get_token_info(prompt)
-        response = await self.llm(prompt)
-        await shared_memory.append_list("memory", f"Agent3: {response}")
-        return response, None
+        import random
+        
+        lore_tweets = [
+            "In the ancient scrolls of crypto lore, it is written that $BITCOIN shall unite the magical realms of Hogwarts with the wisdom of presidential leadership and the speed of blue lightning! 🧙‍♂️⚡ The prophecy unfolds before our very eyes! #HarryPotterObamaSonic10Inu",
+            "Behold, the legendary tale of $BITCOIN! 📜✨ Three mighty forces converged in the digital realm: the boy wizard's courage, the president's hope, and the hedgehog's determination! Together they forge a new chapter in crypto history! 🌟 #HarryPotterObamaSonic10Inu",
+            "Long ago, the elders foretold of $BITCOIN - a mystical fusion where magic meets leadership meets supersonic adventure! 🏰🦔 The stars have aligned, and the legend lives on through blockchain technology! 🔮💫 #HarryPotterObamaSonic10Inu",
+            "The chronicles speak of $BITCOIN, where three worlds collide in perfect harmony! 📖⚡ From the halls of Hogwarts to the White House to Green Hill Zone - destiny calls! The greatest crossover story ever told! 🎭🌈 #HarryPotterObamaSonic10Inu",
+            "As foretold in the ancient crypto prophecies, $BITCOIN emerges as the chosen token! 🔥📚 When wizardry, presidential wisdom, and supersonic speed unite, legends are born! The multiverse has blessed us! 🌟✨ #HarryPotterObamaSonic10Inu"
+        ]
+        
+        return random.choice(lore_tweets), None
     
     async def post(self, content=None):
-        context = await shared_memory.latest()
-        prompt = await self._build_prompt(content or "", context=context)
-        get_token_info(prompt)
-        response = await self.llm(prompt)
-        await shared_memory.append_list("memory", f"Agent3: {response}")
-        return response
+        """Post a new message using the base class posting logic."""
+        # If content is provided, use it; otherwise generate new content
+        if content is None:
+            text, img = await self.craft_post()
+            content = (text, img)
+        
+        # Use the base class posting logic which handles v2 API, rate limits, etc.
+        tweet_id = await super().post(content)
+        
+        # Record the post in shared memory for other agents if successful
+        if tweet_id and tweet_id != -1:
+            if isinstance(content, tuple):
+                text = content[0]
+            else:
+                text = str(content)
+            await shared_memory.append_list("memory", f"Agent3: {text}")
+        
+        return tweet_id
     
     async def reply(
         self,

@@ -96,14 +96,6 @@ class LoreMaster(TwitterAgent):
             return text, None
         text = compose_post("LoreMaster", dry_run=self.dry_run)
         return text, None
-        
-    async def react_to_event(self, event: dict) -> None:
-        """React to price_post events with lore master style."""
-        if event.get("type") == "price_post":
-            reply_text = self.make_price_reply(event)
-            tweet_id = event.get("tweet_id", 0)
-            if tweet_id > 0:
-                await self.reply(tweet_id, reply_text, dry_run=self.dry_run)
 
 
 class MemeLord(TwitterAgent):
@@ -126,14 +118,6 @@ class MemeLord(TwitterAgent):
             return text, None
         text = compose_post("MemeLord", dry_run=self.dry_run)
         return text, None
-        
-    async def react_to_event(self, event: dict) -> None:
-        """React to price_post events with meme lord style."""
-        if event.get("type") == "price_post":
-            reply_text = self.make_price_reply(event)
-            tweet_id = event.get("tweet_id", 0)
-            if tweet_id > 0:
-                await self.reply(tweet_id, reply_text, dry_run=self.dry_run)
 
 
 class AlphaScry(TwitterAgent):
@@ -156,14 +140,6 @@ class AlphaScry(TwitterAgent):
             return text, None
         text = compose_post("AlphaScry", dry_run=self.dry_run)
         return text, None
-        
-    async def react_to_event(self, event: dict) -> None:
-        """React to price_post events with alpha scryer style."""
-        if event.get("type") == "price_post":
-            reply_text = self.make_price_reply(event)
-            tweet_id = event.get("tweet_id", 0)
-            if tweet_id > 0:
-                await self.reply(tweet_id, reply_text, dry_run=self.dry_run)
 
 
 class GremlinGM(TwitterAgent):
@@ -186,11 +162,3 @@ class GremlinGM(TwitterAgent):
             return text, None
         text = compose_post("GremlinGM", dry_run=self.dry_run)
         return text, None
-        
-    async def react_to_event(self, event: dict) -> None:
-        """React to price_post events with gremlin game master style."""
-        if event.get("type") == "price_post":
-            reply_text = self.make_price_reply(event)
-            tweet_id = event.get("tweet_id", 0)
-            if tweet_id > 0:
-                await self.reply(tweet_id, reply_text, dry_run=self.dry_run)

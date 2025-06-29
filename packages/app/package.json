@@ -14,7 +14,8 @@
     "typecheck": "tsc --noEmit",
     "format": "prettier --write ./src",
     "format:check": "prettier --check ./src",
-    "lint": "prettier --write ./src"
+    "lint": "prettier --write ./src",
+    "test": "vitest run"
   },
   "dependencies": {
     "@elizaos/cli": "^1.0.6",

@@ -1,0 +1,51 @@
+html, body {
+  height: 100%;
+  margin: 0;
+  font-family: system-ui, sans-serif;
+}
+
+.app {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  text-align: center;
+  padding: 1rem;
+}
+
+.open-link,
+.btn {
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  background-color: #0078d7;
+  color: #fff;
+  border: none;
+  text-decoration: none;
+  font-size: 1rem;
+  cursor: pointer;
+}
+
+.open-link:focus,
+.btn:focus {
+  outline: 2px solid #005a9e;
+  outline-offset: 2px;
+}
+
+.spinner {
+  margin-top: 1rem;
+  width: 24px;
+  height: 24px;
+  border: 2px solid #ccc;
+  border-top-color: #0078d7;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.error {
+  color: #b00020;
+}

@@ -409,3 +409,15 @@ Upon successful completion of the `tauri-release.yml` workflow (triggered by a n
 # dry‑run all gremlins
 
 python run.py --agent Agent3,Agent4,Agent5,Agent6 --once --dry-run
+
+### Engage CLI
+
+Use the `eliza engage` command to coordinate bot accounts for public engagement on a target tweet.
+
+```
+eliza engage --tweet https://twitter.com/Someone/status/1234567890 --likes BotA,BotB --dry-run
+```
+
+Set `TWITTER_<ACCOUNT>_API_KEY`, `TWITTER_<ACCOUNT>_API_SECRET`, `TWITTER_<ACCOUNT>_ACCESS_TOKEN`, and `TWITTER_<ACCOUNT>_ACCESS_SECRET` for each account.
+
+Only operate clearly disclosed bot accounts and follow all Twitter Rules.

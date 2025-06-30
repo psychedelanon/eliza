@@ -13,6 +13,7 @@ import { start } from '@/src/commands/start';
 import { teeCommand as tee } from '@/src/commands/tee';
 import { test } from '@/src/commands/test';
 import { update } from '@/src/commands/update';
+import { engage } from '@/src/commands/engage';
 import { displayBanner, getVersion, checkAndShowUpdateNotification } from '@/src/utils';
 import { logger } from '@elizaos/core';
 import { Command } from 'commander';
@@ -109,6 +110,7 @@ async function main() {
     .addCommand(agent)
     .addCommand(tee)
     .addCommand(start)
+    .addCommand(engage)
     .addCommand(update)
     .addCommand(test)
     .addCommand(env)

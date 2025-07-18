@@ -91,6 +91,12 @@ npm start
 # Or for development with auto-restart
 npm run dev
 ```
+### Telegram Command Interface
+Send a tweet URL to your bot and it will coordinate likes and replies via the engagement server.
+```bash
+TELEGRAM_BOT_TOKEN=your_token NETWORK_SERVER_URL=http://localhost:3000 tsx src/telegramBot.ts
+```
+
 
 ## 📊 System Features
 

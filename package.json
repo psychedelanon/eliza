@@ -9,7 +9,8 @@
     "build": "tsc",
     "test": "vitest",
     "setup": "npm install && npm run build",
-    "launch": "npm run setup && npm start"
+    "launch": "npm run setup && npm start",
+    "telegram": "tsx src/telegramBot.ts"
   },
   "dependencies": {
     "@elizaos/core": "^1.0.0",
